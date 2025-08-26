@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastrar Usuário - RPA Profectum{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-2">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="/users">Usuários</a></li>
+                        <li class="breadcrumb-item active">Cadastrar</li>
+                    </ol>
+                </nav>
+                <h1 class="h3 mb-0">
+                    <i class="bi bi-person-plus me-2"></i>
+                    Cadastrar Novo Usuário
+                </h1>
+                <p class="text-muted mb-0">Adicione um novo usuário ao sistema</p>
+            </div>
+            <div class="col-auto">
+                <a href="/users" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>
+                    Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+            <div class="stat-card">
+                <div class="card-header bg-transparent border-0 pb-0">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-badge me-2"></i>
+                        Informações do Usuário
+                    </h5>
+                    <p class="text-muted mt-2">Preencha os dados do novo usuário. Todos os campos são obrigatórios.</p>
+                </div>
+                
+                <div class="card-body pt-4">
+                    <form method="POST" id="registerForm">
+                        <div class="row g-4">
+                            <!-- Nome Completo -->
+                            <div class="col-md-6">
+                                <label for="full_name" class="form-label">
+                                    <i class="bi bi-person me-1"></i>
+                                    Nome Completo
+                                </label>
+                                <input type="text" 
+                                       class="form-control form-control-lg" 
+                                       id="full_name" 
+                                       name="full_name" 
+                                       placeholder="Ex: João Silva" 
+                                       required>
+                                <div class="form-text">Nome que será exibido na interface</div>
+                            </div>
+                            
+                            <!-- Nome de Usuário -->
+                            <div class="col-md-6">
+                                <label for="username" class="form-label">
+                                    <i class="bi bi-at me-1"></i>
+                                    Nome de Usuário
+                                </label>
+                                <input type="text" 
+                                       class="form-control form-control-lg" 
+                                       id="username" 
+                                       name="username" 
+                                       placeholder="Ex: joao.silva" 
+                                       pattern="[a-zA-Z0-9._-]+" 
+                                       required>
+                                <div class="form-text">Apenas letras, números, pontos, sublinhados e hífens</div>
+                            </div>
+                            
+                            <!-- E-mail -->
+                            <div class="col-md-8">
+                                <label for="email" class="form-label">
+                                    <i class="bi bi-envelope me-1"></i>
+                                    E-mail
+                                </label>
+                                <input type="email" 
+                                       class="form-control form-control-lg" 
+                                       id="email" 
+                                       name="email" 
+                                       placeholder="Ex: joao.silva@empresa.com" 
+                                       required>
+                                <div class="form-text">Será usado para reset de senha e notificações</div>
+                            </div>
+                            
+                            <!-- Perfil -->
+                            <div class="col-md-4">
+                                <label for="role" class="form-label">
+                                    <i class="bi bi-shield-check me-1"></i>
+                                    Perfil de Acesso
+                                </label>
+                                <select class="form-select form-select-lg" id="role" name="role" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="user">Usuário</option>
+                                    <option value="admin">Administrador</option>
+                                </select>
+                                <div class="form-text">Administradores podem gerenciar usuários</div>
+                            </div>
+                            
+                            <!-- Senha -->
+                            <div class="col-md-6">
+                                <label for="password" class="form-label">
+                                    <i class="bi bi-lock me-1"></i>
+                                    Senha
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" 
+                                           class="form-control form-control-lg" 
+                                           id="password" 
+                                           name="password" 
+                                           placeholder="Mínimo 6 caracteres" 
+                                           minlength="6" 
+                                           required>
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary" 
+                                            onclick="togglePasswordVisibility('password', 'togglePassword1')">
+                                        <i class="bi bi-eye" id="togglePassword1"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">Mínimo de 6 caracteres</div>
+                                <div class="password-strength mt-2">
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" id="passwordStrength" style="width: 0%"></div>
+                                    </div>
+                                    <small class="text-muted" id="passwordStrengthText">Digite uma senha</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Confirmar Senha -->
+                            <div class="col-md-6">
+                                <label for="confirm_password" class="form-label">
+                                    <i class="bi bi-lock-fill me-1"></i>
+                                    Confirmar Senha
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" 
+                                           class="form-control form-control-lg" 
+                                           id="confirm_password" 
+                                           name="confirm_password" 
+                                           placeholder="Digite a senha novamente" 
+                                           required>
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary" 
+                                            onclick="togglePasswordVisibility('confirm_password', 'togglePassword2')">
+                                        <i class="bi bi-eye" id="togglePassword2"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">Repita a senha para confirmar</div>
+                                <div class="password-match mt-2" style="display: none;">
+                                    <small class="text-success">
+                                        <i class="bi bi-check-circle me-1"></i>
+                                        Senhas coincidem
+                                    </small>
+                                </div>
+                                <div class="password-mismatch mt-2" style="display: none;">
+                                    <small class="text-danger">
+                                        <i class="bi bi-x-circle me-1"></i>
+                                        Senhas não coincidem
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Informações Adicionais -->
+                        <div class="row mt-5">
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <div class="d-flex">
+                                        <div class="flex-shrink-0">
+                                            <i class="bi bi-info-circle fs-5"></i>
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <h6 class="mb-1">Permissões por Perfil</h6>
+                                            <ul class="mb-0 small">
+                                                <li><strong>Usuário:</strong> Pode executar bots, visualizar logs e dashboard</li>
+                                                <li><strong>Administrador:</strong> Todas as permissões + gerenciar usuários e configurações</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Botões -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-end gap-3">
+                                    <a href="/users" class="btn btn-secondary btn-lg">
+                                        <i class="bi bi-x-lg me-2"></i>
+                                        Cancelar
+                                    </a>
+                                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                        <span class="btn-text">
+                                            <i class="bi bi-check-lg me-2"></i>
+                                            Cadastrar Usuário
+                                        </span>
+                                        <span class="btn-loading" style="display: none;">
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            Cadastrando...
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function togglePasswordVisibility(fieldId, iconId) {
+        const field = document.getElementById(fieldId);
+        const icon = document.getElementById(iconId);
+        
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            field.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+    
+    function checkPasswordStrength(password) {
+        let strength = 0;
+        let feedback = '';
+        
+        if (password.length >= 6) strength += 1;
+        if (password.match(/[a-z]/)) strength += 1;
+        if (password.match(/[A-Z]/)) strength += 1;
+        if (password.match(/[0-9]/)) strength += 1;
+        if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
+        
+        const strengthBar = document.getElementById('passwordStrength');
+        const strengthText = document.getElementById('passwordStrengthText');
+        
+        switch (strength) {
+            case 0:
+            case 1:
+                strengthBar.className = 'progress-bar bg-danger';
+                strengthBar.style.width = '20%';
+                feedback = 'Muito fraca';
+                break;
+            case 2:
+                strengthBar.className = 'progress-bar bg-warning';
+                strengthBar.style.width = '40%';
+                feedback = 'Fraca';
+                break;
+            case 3:
+                strengthBar.className = 'progress-bar bg-info';
+                strengthBar.style.width = '60%';
+                feedback = 'Média';
+                break;
+            case 4:
+                strengthBar.className = 'progress-bar bg-success';
+                strengthBar.style.width = '80%';
+                feedback = 'Forte';
+                break;
+            case 5:
+                strengthBar.className = 'progress-bar bg-success';
+                strengthBar.style.width = '100%';
+                feedback = 'Muito forte';
+                break;
+        }
+        
+        strengthText.textContent = feedback;
+    }
+    
+    function checkPasswordMatch() {
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm_password').value;
+        const matchDiv = document.querySelector('.password-match');
+        const mismatchDiv = document.querySelector('.password-mismatch');
+        
+        if (confirmPassword.length > 0) {
+            if (password === confirmPassword) {
+                matchDiv.style.display = 'block';
+                mismatchDiv.style.display = 'none';
+                return true;
+            } else {
+                matchDiv.style.display = 'none';
+                mismatchDiv.style.display = 'block';
+                return false;
+            }
+        } else {
+            matchDiv.style.display = 'none';
+            mismatchDiv.style.display = 'none';
+            return false;
+        }
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        const passwordField = document.getElementById('password');
+        const confirmPasswordField = document.getElementById('confirm_password');
+        const usernameField = document.getElementById('username');
+        const form = document.getElementById('registerForm');
+        
+        // Password strength check
+        passwordField.addEventListener('input', function() {
+            checkPasswordStrength(this.value);
+            if (confirmPasswordField.value) {
+                checkPasswordMatch();
+            }
+        });
+        
+        // Password match check
+        confirmPasswordField.addEventListener('input', checkPasswordMatch);
+        
+        // Username validation
+        usernameField.addEventListener('input', function() {
+            this.value = this.value.toLowerCase();
+        });
+        
+        // Form submission
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validate passwords match
+            if (!checkPasswordMatch()) {
+                showToast('As senhas não coincidem', 'danger');
+                return false;
+            }
+            
+            // Show loading state
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const btnLoading = submitBtn.querySelector('.btn-loading');
+            
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline-block';
+            submitBtn.disabled = true;
+            
+            // Submit form
+            this.submit();
+        });
+    });
+    
+    // Auto-focus on first field
+    document.getElementById('full_name').focus();
+</script>
+{% endblock %} 

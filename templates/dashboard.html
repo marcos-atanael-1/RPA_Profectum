@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - RPA Profectum{% endblock %}
+
+{% block content %}
+<div class="fade-in dashboard-container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="h3 mb-0">
+                    <i class="bi bi-speedometer2 me-2"></i>
+                    Dashboard
+                </h1>
+                <p class="text-muted mb-0">Visão geral das automações RPA</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-primary btn-custom" onclick="refreshDashboard()">
+                        <i class="bi bi-arrow-clockwise me-2"></i>
+                        Atualizar
+                    </button>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-plus-lg me-2"></i>
+                            Executar Bot
+                        </button>
+                        <ul class="dropdown-menu">
+                            {% for bot_id, bot in bots.items() %}
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="executeBot('{{ bot_id }}')">
+                                    <i class="bi bi-robot me-2"></i>
+                                    {{ bot.name }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-3 mb-3">
+        <div class="col-xl-3 col-lg-6">
+            <div class="stat-card primary">
+                <div class="stat-icon">
+                    <i class="bi bi-play-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="h2 mb-1">{{ stats.total_executions }}</h3>
+                    <p class="text-muted mb-0">Total de Execuções</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-6">
+            <div class="stat-card success">
+                <div class="stat-icon">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="h2 mb-1">{{ stats.completed_today }}</h3>
+                    <p class="text-muted mb-0">Concluídas Hoje</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-6">
+            <div class="stat-card warning">
+                <div class="stat-icon">
+                    <i class="bi bi-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="h2 mb-1">{{ stats.running_executions }}</h3>
+                    <p class="text-muted mb-0">Em Execução</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-6">
+            <div class="stat-card danger">
+                <div class="stat-icon">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="h2 mb-1">{{ stats.failed_today }}</h3>
+                    <p class="text-muted mb-0">Falharam Hoje</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Executions by Bot Chart -->
+        <div class="col-xl-6">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-bar-chart me-2"></i>
+                        Execuções por Bot (7 dias)
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="chartPeriod" id="period7" checked>
+                        <label class="btn btn-outline-primary" for="period7">7d</label>
+                        
+                        <input type="radio" class="btn-check" name="chartPeriod" id="period30">
+                        <label class="btn btn-outline-primary" for="period30">30d</label>
+                    </div>
+                </div>
+                <canvas id="executionsChart" style="height: 200px; max-height: 200px;"></canvas>
+            </div>
+        </div>
+        
+        <!-- Recent Executions -->
+        <div class="col-xl-6">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Execuções Recentes
+                    </h5>
+                    <a href="/logs" class="btn btn-sm btn-outline-primary">
+                        Ver Todos
+                        <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                
+                <div class="recent-executions" style="max-height: 250px; overflow-y: auto;">
+                    {% if stats.recent_executions %}
+                        {% for execution in stats.recent_executions %}
+                        <div class="d-flex align-items-center justify-content-between p-3 border rounded mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="status-icon me-3">
+                                    {% if execution.status == 'running' %}
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                    {% elif execution.status == 'completed' %}
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                    {% elif execution.status == 'failed' %}
+                                        <i class="bi bi-x-circle-fill text-danger"></i>
+                                    {% else %}
+                                        <i class="bi bi-pause-circle-fill text-warning"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="fw-medium">{{ execution.bot_name }}</div>
+                                    <small class="text-muted">
+                                        <script>
+                                            document.write(formatTimestamp('{{ execution.start_time }}'));
+                                        </script>
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="status-badge status-{{ execution.status }}">
+                                    {{ execution.status }}
+                                </span>
+                                {% if execution.duration %}
+                                <div class="small text-muted mt-1">
+                                    {% if execution.duration %}
+                                        {{ "%.0f"|format(execution.duration) }}s
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                            <p>Nenhuma execução encontrada</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Bots -->
+    <div class="row g-3 mt-3">
+        <div class="col-12">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-robot me-2"></i>
+                        Bots Disponíveis
+                    </h5>
+                    <a href="/bots" class="btn btn-sm btn-outline-primary">
+                        Gerenciar
+                        <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                
+                <div class="row g-3">
+                    {% for bot_id, bot in bots.items() %}
+                    <div class="col-xl-3 col-lg-4 col-md-6">
+                        <div class="card h-100 border-0 bg-light">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-primary bg-opacity-10 rounded-circle p-2">
+                                            <i class="bi bi-robot text-primary"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="card-title mb-1">{{ bot.name }}</h6>
+                                        <small class="text-muted">
+                                            ~{{ bot.estimated_duration }}s estimado
+                                        </small>
+                                    </div>
+                                </div>
+                                <p class="card-text small text-muted mb-3">
+                                    {{ bot.description }}
+                                </p>
+                                <button class="btn btn-primary btn-sm w-100" onclick="executeBot('{{ bot_id }}')">
+                                    <i class="bi bi-play-fill me-1"></i>
+                                    Executar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Execute Bot Modal -->
+<div class="modal fade" id="executeBotModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-play-circle me-2"></i>
+                    Executar Bot
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="botExecutionForm">
+                    <p>Confirma a execução do bot <strong id="botNameToExecute"></strong>?</p>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <span id="botDescription"></span>
+                    </div>
+                </div>
+                <div id="executionProgress" style="display: none;">
+                    <div class="text-center">
+                        <div class="spinner-custom mx-auto mb-3"></div>
+                        <h6>Bot em execução...</h6>
+                        <p class="text-muted">Acompanhe o progresso na página de logs</p>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="executionProgressBar" 
+                                 style="width: 0%">
+                            </div>
+                        </div>
+                        <small class="text-muted mt-2" id="executionStatus">Iniciando...</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" id="confirmExecuteBtn">
+                    <i class="bi bi-play-fill me-1"></i>
+                    Executar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentExecutionId = null;
+    let executionStatusInterval = null;
+    
+    // Chart configuration
+    const chartConfig = {
+        type: 'doughnut',
+        data: {
+            labels: [{% for item in stats.executions_by_bot %}'{{ item.bot_name }}'{% if not loop.last %},{% endif %}{% endfor %}{% if not stats.executions_by_bot %}'Nenhum dado'{% endif %}],
+            datasets: [{
+                data: [{% for item in stats.executions_by_bot %}{{ item.count }}{% if not loop.last %},{% endif %}{% endfor %}{% if not stats.executions_by_bot %}0{% endif %}],
+                backgroundColor: [
+                    '#2563eb',
+                    '#10b981',
+                    '#f59e0b',
+                    '#ef4444',
+                    '#8b5cf6',
+                    '#06b6d4'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                }
+            }
+        }
+    };
+    
+    // Initialize chart
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('executionsChart').getContext('2d');
+        new Chart(ctx, chartConfig);
+    });
+    
+    // Execute bot function
+    function executeBot(botId) {
+        const bot = {
+            {% for bot_id, bot in bots.items() %}
+            '{{ bot_id }}': {
+                name: '{{ bot.name }}',
+                description: '{{ bot.description }}',
+                estimated_duration: {{ bot.estimated_duration }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        }[botId];
+        
+        document.getElementById('botNameToExecute').textContent = bot.name;
+        document.getElementById('botDescription').textContent = bot.description;
+        
+        document.getElementById('confirmExecuteBtn').onclick = function() {
+            executeConfirmed(botId, bot);
+        };
+        
+        const modal = new bootstrap.Modal(document.getElementById('executeBotModal'));
+        modal.show();
+    }
+    
+    function executeConfirmed(botId, botConfig) {
+        // Hide form and show progress
+        document.getElementById('botExecutionForm').style.display = 'none';
+        document.getElementById('executionProgress').style.display = 'block';
+        document.getElementById('modalFooter').style.display = 'none';
+        
+        // Execute bot
+        fetch(`/execute/${botId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.execution_id) {
+                currentExecutionId = data.execution_id;
+                showToast(data.message, 'success');
+                
+                // Start monitoring execution
+                monitorExecution(data.execution_id, botConfig.estimated_duration);
+            } else {
+                showToast(data.error || 'Erro ao executar bot', 'danger');
+                resetModal();
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            showToast('Erro ao executar bot', 'danger');
+            resetModal();
+        });
+    }
+    
+    function monitorExecution(executionId, estimatedDuration) {
+        let elapsed = 0;
+        const updateInterval = 2000; // 2 seconds
+        
+        executionStatusInterval = setInterval(() => {
+            elapsed += updateInterval;
+            const progress = Math.min((elapsed / (estimatedDuration * 1000)) * 100, 95);
+            
+            document.getElementById('executionProgressBar').style.width = progress + '%';
+            document.getElementById('executionStatus').textContent = 
+                `Executando há ${Math.floor(elapsed / 1000)}s...`;
+            
+            // Check execution status
+            fetch(`/api/execution/${executionId}/status`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status !== 'running') {
+                        clearInterval(executionStatusInterval);
+                        
+                        document.getElementById('executionProgressBar').style.width = '100%';
+                        document.getElementById('executionProgressBar').className = 
+                            data.status === 'completed' ? 
+                            'progress-bar bg-success' : 
+                            'progress-bar bg-danger';
+                        
+                        document.getElementById('executionStatus').textContent = 
+                            data.status === 'completed' ? 
+                            'Execução concluída com sucesso!' : 
+                            'Execução falhou';
+                        
+                        setTimeout(() => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('executeBotModal'));
+                            modal.hide();
+                            resetModal();
+                            refreshDashboard();
+                        }, 2000);
+                    }
+                })
+                .catch(error => console.error('Erro ao verificar status:', error));
+                
+        }, updateInterval);
+    }
+    
+    function resetModal() {
+        document.getElementById('botExecutionForm').style.display = 'block';
+        document.getElementById('executionProgress').style.display = 'none';
+        document.getElementById('modalFooter').style.display = 'flex';
+        
+        document.getElementById('executionProgressBar').style.width = '0%';
+        document.getElementById('executionProgressBar').className = 
+            'progress-bar progress-bar-striped progress-bar-animated';
+        
+        if (executionStatusInterval) {
+            clearInterval(executionStatusInterval);
+            executionStatusInterval = null;
+        }
+    }
+    
+    function refreshDashboard() {
+        // Instead of reloading the entire page, we could update specific elements
+        // For now, removing auto-refresh to prevent annoying reloads
+        console.log('Dashboard refresh requested - auto-refresh disabled');
+    }
+    
+    // Auto-refresh disabled - was causing annoying page reloads
+    // setInterval(refreshDashboard, 30000);
+</script>
+{% endblock %} 

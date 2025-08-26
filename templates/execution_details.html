@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+
+{% block title %}Execução {{ execution.id }} - RPA Profectum{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-2">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="/logs">Logs</a></li>
+                        <li class="breadcrumb-item active">Execução {{ execution.id }}</li>
+                    </ol>
+                </nav>
+                <h1 class="h3 mb-0">
+                    <i class="bi bi-play-circle me-2"></i>
+                    {{ execution.bot_name }}
+                </h1>
+                <p class="text-muted mb-0">Detalhes da execução #{{ execution.id }}</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group">
+                    {% if execution.status == 'running' %}
+                    <button type="button" class="btn btn-warning" onclick="stopExecution()">
+                        <i class="bi bi-stop-circle me-2"></i>
+                        Parar Execução
+                    </button>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-primary" onclick="refreshExecution()">
+                        <i class="bi bi-arrow-clockwise me-2"></i>
+                        Atualizar
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="exportExecutionData()">
+                        <i class="bi bi-download me-2"></i>
+                        Exportar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Status Card -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="stat-card">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center">
+                        <div class="status-icon-large mb-3">
+                            {% if execution.status == 'running' %}
+                                <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status"></div>
+                            {% elif execution.status == 'completed' %}
+                                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                            {% elif execution.status == 'failed' %}
+                                <i class="bi bi-x-circle-fill text-danger" style="font-size: 4rem;"></i>
+                            {% else %}
+                                <i class="bi bi-pause-circle-fill text-warning" style="font-size: 4rem;"></i>
+                            {% endif %}
+                        </div>
+                        <span class="status-badge status-{{ execution.status }} fs-6">
+                            {{ execution.status.upper() }}
+                        </span>
+                    </div>
+                    <div class="col-md-10">
+                        <div class="row g-4">
+                            <div class="col-md-3">
+                                <div class="text-muted small">Início</div>
+                                <div class="fw-bold">
+                                    {{ execution.start_time.strftime('%d/%m/%Y %H:%M:%S') if execution.start_time else 'N/A' }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Fim</div>
+                                <div class="fw-bold">
+                                    {{ execution.end_time.strftime('%d/%m/%Y %H:%M:%S') if execution.end_time else 'Em execução' }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Duração</div>
+                                <div class="fw-bold" id="durationDisplay">
+                                    {% if execution.duration %}
+                                        <script>document.write(formatDuration({{ execution.duration }}));</script>
+                                    {% elif execution.status == 'running' %}
+                                        <span id="runningDuration">Calculando...</span>
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Total de Logs</div>
+                                <div class="fw-bold">{{ logs|length }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Progress -->
+    {% if execution.status == 'running' %}
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="stat-card">
+                <h6 class="mb-3">
+                    <i class="bi bi-activity me-2"></i>
+                    Progresso da Execução
+                </h6>
+                <div class="progress mb-3" style="height: 12px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="executionProgress" 
+                         style="width: 0%">
+                    </div>
+                </div>
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <small class="text-muted">Status Atual</small>
+                        <div id="currentStatus">Executando...</div>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted">Último Log</small>
+                        <div id="lastLogTime">-</div>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted">Próxima Verificação</small>
+                        <div id="nextCheck">5s</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Execution Details -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <!-- Parameters -->
+            {% if execution.parameters %}
+            <div class="stat-card mb-4">
+                <h6 class="mb-3">
+                    <i class="bi bi-gear me-2"></i>
+                    Parâmetros de Execução
+                </h6>
+                <pre class="bg-light p-3 rounded"><code>{{ execution.parameters | tojsonpretty if execution.parameters else '{}' }}</code></pre>
+            </div>
+            {% endif %}
+
+            <!-- Result -->
+            {% if execution.result %}
+            <div class="stat-card mb-4">
+                <h6 class="mb-3">
+                    <i class="bi bi-terminal me-2"></i>
+                    Resultado da Execução
+                </h6>
+                <div class="bg-light p-3 rounded">
+                    <pre style="white-space: pre-wrap; max-height: 300px; overflow-y: auto;">{{ execution.result }}</pre>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Error Message -->
+            {% if execution.error_message %}
+            <div class="stat-card mb-4">
+                <h6 class="mb-3 text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Mensagem de Erro
+                </h6>
+                <div class="alert alert-danger">
+                    <pre style="white-space: pre-wrap;">{{ execution.error_message }}</pre>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Quick Stats -->
+            <div class="stat-card mb-4">
+                <h6 class="mb-3">
+                    <i class="bi bi-bar-chart me-2"></i>
+                    Estatísticas Rápidas
+                </h6>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Logs INFO</span>
+                    <span class="badge bg-primary">{{ logs | selectattr('level', 'equalto', 'INFO') | list | length }}</span>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Logs WARNING</span>
+                    <span class="badge bg-warning">{{ logs | selectattr('level', 'equalto', 'WARNING') | list | length }}</span>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Logs ERROR</span>
+                    <span class="badge bg-danger">{{ logs | selectattr('level', 'equalto', 'ERROR') | list | length }}</span>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Logs DEBUG</span>
+                    <span class="badge bg-secondary">{{ logs | selectattr('level', 'equalto', 'DEBUG') | list | length }}</span>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="stat-card">
+                <h6 class="mb-3">
+                    <i class="bi bi-tools me-2"></i>
+                    Ações
+                </h6>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary" onclick="duplicateExecution()">
+                        <i class="bi bi-files me-2"></i>
+                        Duplicar Execução
+                    </button>
+                    
+                    <button type="button" class="btn btn-outline-primary" onclick="viewFullLogs()">
+                        <i class="bi bi-file-text me-2"></i>
+                        Ver Todos os Logs
+                    </button>
+                    
+                    {% if execution.status != 'running' %}
+                    <button type="button" class="btn btn-outline-success" onclick="restartExecution()">
+                        <i class="bi bi-arrow-clockwise me-2"></i>
+                        Executar Novamente
+                    </button>
+                    {% endif %}
+                    
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteExecution()">
+                        <i class="bi bi-trash me-2"></i>
+                        Excluir Execução
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Timeline -->
+    <div class="row">
+        <div class="col-12">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Timeline de Logs
+                    </h6>
+                    <div class="d-flex align-items-center">
+                        <div class="form-check form-switch me-3">
+                            <input class="form-check-input" type="checkbox" id="autoRefreshLogs" {% if execution.status == 'running' %}checked{% endif %}>
+                            <label class="form-check-label" for="autoRefreshLogs">
+                                Auto-atualizar
+                            </label>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-primary" onclick="filterLogs('all')" id="filterAll">
+                                Todos
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" onclick="filterLogs('ERROR')" id="filterError">
+                                Erros
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" onclick="filterLogs('WARNING')" id="filterWarning">
+                                Avisos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="logsContainer" style="max-height: 500px; overflow-y: auto;">
+                    {% if logs %}
+                        {% for log in logs %}
+                        <div class="log-entry log-{{ log.level.lower() }}" data-level="{{ log.level }}" data-log-id="{{ log.id }}">
+                            <div class="d-flex align-items-start">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="timeline-dot bg-{{ 'primary' if log.level == 'INFO' else 'warning' if log.level == 'WARNING' else 'danger' if log.level == 'ERROR' else 'secondary' }}"></div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge badge-{{ log.level.lower() }} me-2">{{ log.level }}</span>
+                                            {% if log.module %}
+                                            <small class="text-muted">{{ log.module }}</small>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">
+                                            {{ log.timestamp.strftime('%H:%M:%S') }}
+                                        </small>
+                                    </div>
+                                    <div class="log-message">
+                                        {{ log.message }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox display-6 text-muted d-block mb-3"></i>
+                            <p class="text-muted">Nenhum log encontrado para esta execução.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stop Execution Modal -->
+<div class="modal fade" id="stopExecutionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Parar Execução
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja parar esta execução?</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Esta ação irá interromper o bot imediatamente e pode deixar processos incompletos.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-warning" onclick="confirmStopExecution()">
+                    <i class="bi bi-stop-circle me-1"></i>
+                    Parar Execução
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let autoRefreshInterval = null;
+    let durationInterval = null;
+    let progressSimulation = null;
+    
+    const executionId = {{ execution.id }};
+    const executionStatus = '{{ execution.status }}';
+    const startTime = new Date('{{ execution.start_time.isoformat() if execution.start_time else "" }}');
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Start auto-refresh if execution is running
+        if (executionStatus === 'running') {
+            startAutoRefresh();
+            startDurationTimer();
+            startProgressSimulation();
+        }
+        
+        // Auto-refresh toggle
+        document.getElementById('autoRefreshLogs').addEventListener('change', function() {
+            if (this.checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+    });
+    
+    function startAutoRefresh() {
+        stopAutoRefresh(); // Clear any existing interval
+        autoRefreshInterval = setInterval(checkExecutionStatus, 5000);
+        updateNextCheckCountdown();
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+    
+    function startDurationTimer() {
+        if (executionStatus === 'running' && startTime) {
+            durationInterval = setInterval(updateDuration, 1000);
+        }
+    }
+    
+    function updateDuration() {
+        const now = new Date();
+        const diff = (now - startTime) / 1000; // seconds
+        document.getElementById('runningDuration').textContent = formatDuration(diff);
+    }
+    
+    function startProgressSimulation() {
+        if (executionStatus === 'running') {
+            let progress = 0;
+            progressSimulation = setInterval(() => {
+                progress += Math.random() * 2;
+                if (progress > 95) progress = 95;
+                
+                document.getElementById('executionProgress').style.width = progress + '%';
+            }, 3000);
+        }
+    }
+    
+    function updateNextCheckCountdown() {
+        let countdown = 5;
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            document.getElementById('nextCheck').textContent = countdown + 's';
+            
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                document.getElementById('nextCheck').textContent = 'Verificando...';
+                setTimeout(() => {
+                    if (autoRefreshInterval) {
+                        updateNextCheckCountdown();
+                    }
+                }, 1000);
+            }
+        }, 1000);
+    }
+    
+    function checkExecutionStatus() {
+        fetch(`/api/execution/${executionId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== executionStatus) {
+                    // Status changed, reload page
+                    location.reload();
+                } else {
+                    // Update last log time
+                    updateLastLogTime();
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao verificar status:', error);
+            });
+    }
+    
+    function updateLastLogTime() {
+        fetch(`/api/logs/${executionId}`)
+            .then(response => response.json())
+            .then(logs => {
+                if (logs.length > 0) {
+                    const lastLog = logs[logs.length - 1];
+                    const lastTime = new Date(lastLog.timestamp);
+                    document.getElementById('lastLogTime').textContent = lastTime.toLocaleTimeString('pt-BR');
+                }
+            })
+            .catch(error => console.error('Erro ao atualizar logs:', error));
+    }
+    
+    function stopExecution() {
+        const modal = new bootstrap.Modal(document.getElementById('stopExecutionModal'));
+        modal.show();
+    }
+    
+    function confirmStopExecution() {
+        fetch(`/stop/${executionId}`, {
+            method: 'POST'
+        })
+        .then(response => {
+            if (response.ok) {
+                showToast('Execução interrompida', 'warning');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Erro ao parar execução', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            showToast('Erro ao parar execução', 'danger');
+        });
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('stopExecutionModal'));
+        modal.hide();
+    }
+    
+    function refreshExecution() {
+        location.reload();
+    }
+    
+    function exportExecutionData() {
+        window.open(`/api/export/execution/${executionId}`, '_blank');
+        showToast('Exportação iniciada', 'success');
+    }
+    
+    function duplicateExecution() {
+        showToast('Funcionalidade em desenvolvimento', 'info');
+    }
+    
+    function viewFullLogs() {
+        window.open(`/logs?execution_id=${executionId}`, '_blank');
+    }
+    
+    function restartExecution() {
+        showToast('Funcionalidade em desenvolvimento', 'info');
+    }
+    
+    function deleteExecution() {
+        if (confirm('Tem certeza que deseja excluir esta execução?')) {
+            showToast('Funcionalidade em desenvolvimento', 'info');
+        }
+    }
+    
+    function filterLogs(level) {
+        const logs = document.querySelectorAll('.log-entry');
+        const buttons = document.querySelectorAll('[id^="filter"]');
+        
+        // Reset button states
+        buttons.forEach(btn => btn.classList.remove('active'));
+        document.getElementById('filter' + (level === 'all' ? 'All' : level.charAt(0).toUpperCase() + level.slice(1).toLowerCase())).classList.add('active');
+        
+        logs.forEach(log => {
+            if (level === 'all' || log.dataset.level === level) {
+                log.style.display = 'block';
+            } else {
+                log.style.display = 'none';
+            }
+        });
+    }
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        stopAutoRefresh();
+        if (durationInterval) clearInterval(durationInterval);
+        if (progressSimulation) clearInterval(progressSimulation);
+    });
+</script>
+
+<style>
+    .timeline-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        position: relative;
+    }
+    
+    .timeline-dot::before {
+        content: '';
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 30px;
+        background: #e2e8f0;
+    }
+    
+    .log-entry:last-child .timeline-dot::before {
+        display: none;
+    }
+    
+    .status-icon-large {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+</style>
+{% endblock %} 
