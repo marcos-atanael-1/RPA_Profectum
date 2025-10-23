@@ -14,31 +14,18 @@ def main():
     usuario = os.getenv("RM_USUARIO")
     senha = os.getenv("RM_SENHA")
 
-    # Preenche usuário
-    #if not bot.find("RM_Usuario", matching=0.97, waiting_time=10000):
-        #print("Elemento não encontrado: RM_Usuario")
-        #bot.click()
-        #bot.paste(usuario)
-        #bot.tab()
-        #bot.paste(senha)
-
-
-    #if not bot.find("RM_Logar", matching=0.97, waiting_time=10000):
-        #print("Elemento não encontrado: RM_Logar")
-    #bot.click()
-
 # Searching for element 'RM_Ususario_icon '
-    if not bot.find("RM_Ususario_icon", matching=0.97, waiting_time=10000):
-        print("Elemento não encontrado: RM_Ususario_icon")
-    bot.click_relative(54, 13)
-    bot.paste("profectum")
+    #if not bot.find("RM_Ususario_icon", matching=0.97, waiting_time=10000):
+        #print("Elemento não encontrado: RM_Ususario_icon")
+    #bot.click_relative(54, 13)
+    #bot.paste(usuario)
     
     
    # Searching for element 'RM_Senha_Icon '
     if not bot.find("RM_Senha_Icon", matching=0.97, waiting_time=10000):
         print("Elemento não encontrado: RM_Senha_Icon")
     bot.click_relative(46, 16)
-    bot.paste("aa123456")
+    bot.paste(senha)
 
 
     if not bot.find("RM_Logar", matching=0.97, waiting_time=10000):
