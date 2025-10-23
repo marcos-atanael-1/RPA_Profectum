@@ -4,7 +4,8 @@ from botcity.maestro import BotMaestroSDK
 from Sic_Login import main as sic_login
 from Sic_Modulo_Contabil import main as Sic_Modulo_Contabil
 from Sic_Inserir_NF import main as Sic_Inserir_NF
-from RM_Login import main as RM_Login
+#from RM_Login import main as RM_Login
+from RM_Acessar_Compras import main as RM_Acessar_Compras
 from dotenv import load_dotenv
 from bot_logger import get_logger
 
@@ -32,9 +33,14 @@ def main():
 
 
         # Etapa 0: Login no RM
-        logger.step("Login no RM", "Iniciando processo de autenticação")
-        RM_Login()
-        logger.success("Login no RM concluído")
+        #logger.step("Login no RM", "Iniciando processo de autenticação")
+        #RM_Login()
+        #logger.success("Login no RM concluído")
+
+        # Etapa 00: Acessar menu Compras RM
+        logger.step("Acessar compras RM", "Iniciando navegação RM")
+        RM_Acessar_Compras()
+        logger.success("Compras Acessado")
 
 
 
