@@ -99,6 +99,29 @@ class SystemSettings(db.Model):
         db.session.commit()
         return setting
 
+class RecebimentoNF(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pedido_compra = db.Column(db.String(100), nullable=False)
+    nota_fiscal = db.Column(db.String(100), nullable=False)
+    chave_acesso = db.Column(db.String(44), nullable=False)  # Chave NFe tem 44 caracteres
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pendente')  # pendente, processado, erro
+    
+    creator = db.relationship('User', backref=db.backref('recebimentos_nf', lazy=True))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'pedido_compra': self.pedido_compra,
+            'nota_fiscal': self.nota_fiscal,
+            'chave_acesso': self.chave_acesso,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_by': self.created_by,
+            'creator_name': self.creator.full_name if self.creator else None,
+            'status': self.status
+        }
+
 class BotExecution(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     bot_name = db.Column(db.String(100), nullable=False)
@@ -483,6 +506,94 @@ def bots_management():
     """Página de gerenciamento de bots"""
     return render_template('bots.html', bots=AVAILABLE_BOTS)
 
+@app.route('/recebimento-nf')
+@login_required
+def recebimento_nf():
+    """Página de gerenciamento de recebimento de NF"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    
+    # Filtros
+    pedido_filter = request.args.get('pedido', '')
+    nf_filter = request.args.get('nf', '')
+    status_filter = request.args.get('status', '')
+    
+    # Query base
+    query = RecebimentoNF.query
+    
+    # Aplicar filtros
+    if pedido_filter:
+        query = query.filter(RecebimentoNF.pedido_compra.contains(pedido_filter))
+    if nf_filter:
+        query = query.filter(RecebimentoNF.nota_fiscal.contains(nf_filter))
+    if status_filter:
+        query = query.filter(RecebimentoNF.status == status_filter)
+    
+    # Ordenar por data de criação (mais recente primeiro)
+    query = query.order_by(RecebimentoNF.created_at.desc())
+    
+    # Paginação
+    recebimentos = query.paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('recebimento_nf.html', 
+                         recebimentos=recebimentos,
+                         pedido_filter=pedido_filter,
+                         nf_filter=nf_filter,
+                         status_filter=status_filter)
+
+@app.route('/recebimento-nf/add', methods=['POST'])
+@login_required
+def add_recebimento_nf():
+    """Adicionar novo recebimento de NF"""
+    try:
+        pedido_compra = request.form.get('pedido_compra', '').strip()
+        nota_fiscal = request.form.get('nota_fiscal', '').strip()
+        chave_acesso = request.form.get('chave_acesso', '').strip()
+        
+        # Validações
+        if not pedido_compra:
+            flash('Pedido de Compra é obrigatório', 'error')
+            return redirect(url_for('recebimento_nf'))
+            
+        if not nota_fiscal:
+            flash('Nota Fiscal é obrigatória', 'error')
+            return redirect(url_for('recebimento_nf'))
+            
+        if not chave_acesso:
+            flash('Chave de Acesso é obrigatória', 'error')
+            return redirect(url_for('recebimento_nf'))
+            
+        if len(chave_acesso) != 44:
+            flash('Chave de Acesso deve ter 44 caracteres', 'error')
+            return redirect(url_for('recebimento_nf'))
+        
+        # Verificar se já existe
+        existing = RecebimentoNF.query.filter_by(chave_acesso=chave_acesso).first()
+        if existing:
+            flash('Já existe um recebimento com esta Chave de Acesso', 'error')
+            return redirect(url_for('recebimento_nf'))
+        
+        # Criar novo recebimento
+        recebimento = RecebimentoNF(
+            pedido_compra=pedido_compra,
+            nota_fiscal=nota_fiscal,
+            chave_acesso=chave_acesso,
+            created_by=current_user.id
+        )
+        
+        db.session.add(recebimento)
+        db.session.commit()
+        
+        flash('Recebimento de NF adicionado com sucesso!', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao adicionar recebimento: {str(e)}', 'error')
+    
+    return redirect(url_for('recebimento_nf'))
+
 @app.route('/logs')
 @login_required
 def logs_view():
@@ -708,4 +819,4 @@ if __name__ == '__main__':
         db.create_all()
         create_admin_user()
     
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    app.run(debug=True, host='0.0.0.0', port=5000)
