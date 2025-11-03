@@ -107,6 +107,7 @@ class RecebimentoNF(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='pendente')  # pendente, processado, erro
+    error_message = db.Column(db.Text)  # Mensagem de erro caso ocorra
     
     creator = db.relationship('User', backref=db.backref('recebimentos_nf', lazy=True))
     
@@ -119,7 +120,8 @@ class RecebimentoNF(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'created_by': self.created_by,
             'creator_name': self.creator.full_name if self.creator else None,
-            'status': self.status
+            'status': self.status,
+            'error_message': self.error_message
         }
 
 class BotExecution(db.Model):
@@ -179,6 +181,12 @@ AVAILABLE_BOTS = {
         'description': 'Realiza apenas o login no sistema SIC',
         'script': 'entrada-nf/Sic_Login.py',
         'estimated_duration': 60
+    },
+    'sic_inserir_nfs': {
+        'name': 'SIC - Inserir NFs Pendentes',
+        'description': 'Busca todas as NFs com status pendente no banco e insere no sistema SIC',
+        'script': 'entrada-nf/Sic_Inserir_NF.py',
+        'estimated_duration': 180
     },
     'rm_login': {
         'name': 'RM - Login',
