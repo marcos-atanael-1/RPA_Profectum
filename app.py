@@ -602,6 +602,41 @@ def add_recebimento_nf():
     
     return redirect(url_for('recebimento_nf'))
 
+@app.route('/api/recebimento/<int:recebimento_id>', methods=['DELETE'])
+@login_required
+def delete_recebimento_nf(recebimento_id):
+    """Excluir um recebimento de NF"""
+    try:
+        recebimento = RecebimentoNF.query.get(recebimento_id)
+        
+        if not recebimento:
+            return jsonify({
+                'success': False,
+                'error': 'Recebimento não encontrado'
+            }), 404
+        
+        # Verificar se o usuário tem permissão (admin ou criador)
+        if not current_user.is_admin() and recebimento.created_by != current_user.id:
+            return jsonify({
+                'success': False,
+                'error': 'Você não tem permissão para excluir este recebimento'
+            }), 403
+        
+        db.session.delete(recebimento)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Recebimento excluído com sucesso'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'Erro ao excluir recebimento: {str(e)}'
+        }), 500
+
 @app.route('/logs')
 @login_required
 def logs_view():
