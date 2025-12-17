@@ -128,3 +128,12 @@ document.getElementById('chave_acesso')?.addEventListener('keyup', function() {
     }
 });
 
+// Feedback visual ao enviar formulário de novo romaneio
+document.getElementById('formNovoRomaneio')?.addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Criando...';
+    }
+});
+

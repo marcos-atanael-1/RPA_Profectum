@@ -222,12 +222,12 @@
 <div class="modal fade" id="modalNovoRomaneio" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-plus"></i> Novo Romaneio</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form method="POST" action="{{ url_for('add_romaneio') }}">
+            <form method="POST" action="{{ url_for('add_romaneio') }}" id="formNovoRomaneio">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Novo Romaneio</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Pedido de Compra *</label>
                         <input type="text" class="form-control" name="pedido_compra" id="pedido_compra" required placeholder="Digite o número do pedido de compra">
@@ -241,14 +241,13 @@
                         <input type="text" class="form-control" name="chave_acesso" id="chave_acesso" maxlength="44" required placeholder="Cole ou digite a chave de acesso de 44 caracteres">
                         <small class="text-muted" id="chave-counter">A chave deve conter exatamente 44 caracteres numéricos</small>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Criar Romaneio
-                </button>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Criar Romaneio
+                    </button>
+                </div>
             </form>
         </div>
     </div>
