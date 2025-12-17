@@ -20,7 +20,7 @@ FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
 # ========================================
 # API Romaneios - Configurações Externas
 # ========================================
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://172.16.0.17:3600')
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://172.16.17:3600')
 API_SYSTEM_ID = os.getenv('API_SYSTEM_ID', 'sys_1f02a9e8b5f24d73b8e74d8fae931c64_prod')
 
 # ========================================

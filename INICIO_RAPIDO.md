@@ -16,7 +16,7 @@ Crie um arquivo chamado `.env` na raiz do projeto com:
 MODO_TESTE=True
 
 # API (configure depois para produção)
-API_BASE_URL=http://172.16.0.17:3600
+API_BASE_URL=http://172.16.17:3600
 API_SYSTEM_ID=sys_1f02a9e8b5f24d73b8e74d8fae931c64_prod
 
 # Verificador
@@ -86,8 +86,8 @@ Quando estiver pronto para usar com a API real:
    ```
 
 ⚠️ **ATENÇÃO:** Com `MODO_TESTE=False`, o sistema vai:
-- Chamar a API real em `http://172.16.0.17:3600`
-- Fazer POST para inserir romaneios
+- Chamar a API real em `http://172.16.17:3600`
+- Fazer POST para `/api/romaneio/inserir` para inserir romaneios
 - Fazer PUT para atualizar status
 - Fazer GET para verificar quantidades
 

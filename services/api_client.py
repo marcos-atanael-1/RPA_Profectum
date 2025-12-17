@@ -59,13 +59,14 @@ class RomaneioAPIClient:
         """
         Simula inserção de romaneio (quando MODO_TESTE=True)
         """
-        self._log(f"MODO TESTE: Simulando POST para pedido {dados.get('pedidoCompra')}")
+        romaneio = dados.get('romaneio', {})
+        self._log(f"MODO TESTE: Simulando POST para pedido {romaneio.get('pedidoCompra')}")
         
         return {
             "success": True,
             "message": "[TESTE] Romaneio inserido com sucesso",
             "idro": 999999,
-            "pedido": dados.get('pedidoCompra')
+            "pedido": romaneio.get('pedidoCompra')
         }
     
     def _mock_atualizar_status(self, idro, status):
@@ -154,19 +155,21 @@ class RomaneioAPIClient:
             inserir_como_parcial = config.API_INSERIR_PARCIAL_SE_EXISTIR
         
         dados = {
-            "pedidoCompra": pedido_compra,
-            "notaFiscal": nota_fiscal,
-            "chaveAcesso": chave_acesso,
-            "aposRecebimento": apos_recebimento,
-            "programado": programado,
-            "inserirComoParcialSeJaExistir": inserir_como_parcial
+            "romaneio": {
+                "pedidoCompra": pedido_compra,
+                "notaFiscal": nota_fiscal,
+                "chaveAcesso": chave_acesso,
+                "aposRecebimento": apos_recebimento,
+                "programado": programado,
+                "inserirComoParcialSeJaExistir": inserir_como_parcial
+            }
         }
         
         if self.modo_teste:
             return self._mock_inserir_romaneio(dados)
         
         try:
-            url = f"{self.base_url}/api/inserir"
+            url = f"{self.base_url}/api/romaneio/inserir"
             self._log(f"POST {url}")
             self._log(f"Dados: {dados}")
             

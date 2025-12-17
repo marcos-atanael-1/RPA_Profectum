@@ -38,7 +38,7 @@ Crie um arquivo `.env` na raiz do projeto (ou copie o `.env.example`):
 
 ```bash
 # API Romaneios
-API_BASE_URL=http://172.16.0.17:3600
+API_BASE_URL=http://172.16.17:3600
 API_SYSTEM_ID=sys_1f02a9e8b5f24d73b8e74d8fae931c64_prod
 
 # Modo de Operação
@@ -179,7 +179,7 @@ A cada `INTERVALO_VERIFICACAO_MINUTOS` (padrão: 5 minutos):
 
 ⚠️ **Apenas quando estiver pronto!**
 - Chama as APIs externas reais
-- POST `/api/inserir` ao criar romaneio
+- POST `/api/romaneio/inserir` ao criar romaneio
 - GET `/api/romaneio/{pedido}` para verificar
 - PUT `/api/romaneio/atualizar/{idro}` para atualizar status
 

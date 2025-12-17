@@ -127,7 +127,7 @@ Implementação completa do sistema de gerenciamento de romaneios via API, subst
 - Formulário modal para criar novo romaneio
 - Validação de campos (44 dígitos para chave)
 - Opções da API configuráveis
-- Chama POST `/api/inserir` (se não for modo teste)
+- Chama POST `/api/romaneio/inserir` (se não for modo teste)
 - Salva no banco com status Pendente
 
 ### 2. ✅ Painel Web - Listagem
@@ -204,16 +204,25 @@ Implementação completa do sistema de gerenciamento de romaneios via API, subst
 
 ```bash
 # GET - Buscar romaneio
-GET http://172.16.0.17:3600/api/romaneio/{pedido_compra}
+GET http://172.16.17:3600/api/romaneio/{pedido_compra}
 Headers: x-system-id-romaneios
 
 # POST - Inserir romaneio
-POST http://172.16.0.17:3600/api/inserir
+POST http://172.16.17:3600/api/romaneio/inserir
 Headers: x-system-id-romaneios
-Body: {pedidoCompra, notaFiscal, chaveAcesso, ...}
+Body: {
+  "romaneio": {
+    "pedidoCompra": "000280500",
+    "notaFiscal": "9593752",
+    "chaveAcesso": "35250861516434000133550000000003241401514044",
+    "aposRecebimento": false,
+    "programado": true,
+    "inserirComoParcialSeJaExistir": false
+  }
+}
 
 # PUT - Atualizar status
-PUT http://172.16.0.17:3600/api/romaneio/atualizar/{idro}
+PUT http://172.16.17:3600/api/romaneio/atualizar/{idro}
 Headers: x-system-id-romaneios
 Body: {status: "A"}
 ```
@@ -248,7 +257,7 @@ Body: {status: "A"}
 
 ```bash
 # API Externa
-API_BASE_URL=http://172.16.0.17:3600
+API_BASE_URL=http://172.16.17:3600
 API_SYSTEM_ID=sys_1f02a9e8b5f24d73b8e74d8fae931c64_prod
 
 # Modo Teste
