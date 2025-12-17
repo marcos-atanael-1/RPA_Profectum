@@ -122,7 +122,7 @@
             font-size: 1.2rem;
         }
         
-        /* Dashboard specific styles */
+        /* Page specific styles */
         .dashboard-container {
             height: auto;
             overflow: visible;
@@ -768,15 +768,9 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav mx-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="/">
-                            <i class="bi bi-speedometer2 me-1"></i>
-                            Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'recebimento_nf' %}active{% endif %}" href="/recebimento-nf">
-                            <i class="bi bi-receipt me-1"></i>
-                            Recebimento NF
+                        <a class="nav-link {% if request.endpoint == 'romaneios' or request.endpoint == 'romaneio_details' %}active{% endif %}" href="/romaneios">
+                            <i class="bi bi-truck me-1"></i>
+                            Romaneios
                         </a>
                     </li>
                     <li class="nav-item">
@@ -803,7 +797,23 @@
                             <span class="d-none d-lg-inline">{{ current_user.full_name or current_user.username }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Sair</a></li>
+                            <li><h6 class="dropdown-header">
+                                <i class="bi bi-person-circle me-2"></i>{{ current_user.username }}
+                            </h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% if current_user.is_admin() %}
+                            <li><a class="dropdown-item" href="{{ url_for('users_management') }}">
+                                <i class="bi bi-people me-2"></i>Gerenciar Usuários
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{{ url_for('change_password') }}">
+                                <i class="bi bi-key me-2"></i>Alterar Senha
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="/logout">
+                                <i class="bi bi-box-arrow-right me-2"></i>Sair
+                            </a></li>
                         </ul>
                     </div>
                 </div>

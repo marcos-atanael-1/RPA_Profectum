@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Romaneio {{ romaneio.pedido_compra }} - {{ system_settings.system_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Cabeçalho -->
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('romaneios') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('romaneios') }}">Romaneios</a></li>
+                    <li class="breadcrumb-item active">{{ romaneio.pedido_compra }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">
+                <i class="fas fa-shipping-fast"></i> Romaneio {{ romaneio.pedido_compra }}
+            </h1>
+        </div>
+        <div class="col-auto">
+            {% if modo_teste %}
+            <span class="badge bg-warning text-dark fs-6 me-2">
+                <i class="fas fa-flask"></i> MODO TESTE
+            </span>
+            {% endif %}
+            {% if romaneio.pode_verificar() %}
+            <button class="btn btn-primary" id="btnVerificarAgora">
+                <i class="fas fa-sync"></i> Verificar Agora
+            </button>
+            {% endif %}
+            {% if current_user.is_admin() %}
+            <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalAtualizarStatus">
+                <i class="fas fa-edit"></i> Atualizar Status
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Informações Principais -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-info-circle"></i> Informacoes do Romaneio</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Pedido de Compra</label>
+                            <div class="fw-bold">{{ romaneio.pedido_compra }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Nota Fiscal</label>
+                            <div class="fw-bold">{{ romaneio.nota_fiscal }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Chave de Acesso</label>
+                            <div class="font-monospace small">{{ romaneio.chave_acesso }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">IDRO</label>
+                            <div class="fw-bold">{{ romaneio.idro if romaneio.idro else '-' }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Criado em</label>
+                            <div>{{ romaneio.created_at.strftime('%d/%m/%Y %H:%M') if romaneio.created_at else '-' }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Criado por</label>
+                            <div>{{ romaneio.creator.full_name if romaneio.creator else '-' }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Ultima Atualizacao</label>
+                            <div>{{ romaneio.updated_at.strftime('%d/%m/%Y %H:%M') if romaneio.updated_at else '-' }}</div>
+                        </div>
+                        {% if romaneio.observacoes %}
+                        <div class="col-12 mb-3">
+                            <label class="text-muted small">Observacoes</label>
+                            <div class="alert alert-info mb-0">{{ romaneio.observacoes }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-flag"></i> Status</h5>
+                </div>
+                <div class="card-body text-center">
+                    {% set dados = romaneio.to_dict() %}
+                    <h2>
+                        <span class="badge bg-{{ dados.status_color }} fs-4">
+                            {{ dados.status_label }}
+                        </span>
+                    </h2>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-redo"></i> Tentativas</h5>
+                </div>
+                <div class="card-body text-center">
+                    <h2>
+                        <span class="badge bg-{% if romaneio.tentativas_contagem >= 3 %}danger{% elif romaneio.tentativas_contagem >= 2 %}warning{% else %}secondary{% endif %} fs-4">
+                            {{ romaneio.tentativas_contagem }} / {{ dados.max_tentativas }}
+                        </span>
+                    </h2>
+                    {% if romaneio.tentativas_contagem >= dados.max_tentativas %}
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> Maximo de tentativas atingido
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Itens do Romaneio -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-boxes"></i> Itens do Romaneio
+                <span class="badge bg-primary">{{ romaneio.itens|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if romaneio.itens %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Descricao</th>
+                            <th class="text-center">Qtd. NF</th>
+                            <th class="text-center">Qtd. Contada</th>
+                            <th class="text-center">Diferenca</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in romaneio.itens %}
+                        <tr {% if item.tem_divergencia() %}class="table-warning"{% endif %}>
+                            <td><code>{{ item.codigo }}</code></td>
+                            <td>{{ item.descricao }}</td>
+                            <td class="text-center fw-bold">{{ item.quantidade_nf }}</td>
+                            <td class="text-center fw-bold">
+                                {% if item.quantidade_contada is not none %}
+                                    {{ item.quantidade_contada }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if item.quantidade_contada is not none %}
+                                    {% set diff = item.quantidade_contada - item.quantidade_nf %}
+                                    {% if diff == 0 %}
+                                        <span class="badge bg-success">OK</span>
+                                    {% elif diff > 0 %}
+                                        <span class="badge bg-warning">+{{ diff }}</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ diff }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if item.tem_divergencia() %}
+                                    {% if item.quantidade_contada is none %}
+                                        <span class="badge bg-secondary">Nao Contado</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Divergente</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-success">Conferido</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-box-open fa-2x mb-2"></i>
+                <p>Nenhum item encontrado. Execute uma verificacao para buscar os itens da API.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Timeline de Logs -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-history"></i> Historico
+                <span class="badge bg-primary">{{ logs|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if logs %}
+            <div class="timeline">
+                {% for log in logs %}
+                <div class="timeline-item mb-4">
+                    <div class="timeline-marker">
+                        <i class="fas fa-circle text-{{ 'danger' if log.acao == 'erro_verificacao' else 'warning' if log.acao == 'max_tentativas' else 'primary' }}"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>{{ log.acao|replace('_', ' ')|title }}</strong>
+                                {% if log.tentativa %}
+                                <span class="badge bg-secondary">Tentativa {{ log.tentativa }}</span>
+                                {% endif %}
+                                {% if log.status_anterior and log.status_novo %}
+                                <br>
+                                <small class="text-muted">
+                                    {{ log.to_dict().status_anterior_label }} <i class="fas fa-arrow-right"></i> {{ log.to_dict().status_novo_label }}
+                                </small>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">{{ log.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}</small>
+                        </div>
+                        {% if log.detalhes %}
+                        <div class="mt-2 alert alert-secondary mb-0 small">
+                            <pre class="mb-0" style="white-space: pre-wrap;">{{ log.detalhes }}</pre>
+                        </div>
+                        {% endif %}
+                        <small class="text-muted">Por: {{ log.to_dict().user_name }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-history fa-2x mb-2"></i>
+                <p>Nenhum historico ainda.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Atualizar Status (Admin) -->
+{% if current_user.is_admin() %}
+<div class="modal fade" id="modalAtualizarStatus" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Atualizar Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formAtualizarStatus">
+                    <div class="mb-3">
+                        <label class="form-label">Novo Status</label>
+                        <select class="form-select" id="novo_status" required>
+                            {% for key, label in status_choices.items() %}
+                            <option value="{{ key }}" {% if key == romaneio.status %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observacoes</label>
+                        <textarea class="form-control" id="observacoes_status" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="btnSalvarStatus">
+                    <i class="fas fa-save"></i> Atualizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -24px;
+    top: 5px;
+}
+
+.timeline-content {
+    padding-left: 15px;
+}
+</style>
+
+<script>
+const romaneioId = {{ romaneio.id }};
+
+// Verificar agora
+document.getElementById('btnVerificarAgora')?.addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+    
+    try {
+        const response = await fetch(`/api/romaneios/${romaneioId}/verificar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Verificacao realizada com sucesso!');
+            location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    } catch (error) {
+        alert('Erro ao verificar romaneio: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync"></i> Verificar Agora';
+    }
+});
+
+// Atualizar status (admin)
+document.getElementById('btnSalvarStatus')?.addEventListener('click', async function() {
+    const novoStatus = document.getElementById('novo_status').value;
+    const observacoes = document.getElementById('observacoes_status').value;
+    
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+    
+    try {
+        const response = await fetch(`/api/romaneios/${romaneioId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                status: novoStatus,
+                observacoes: observacoes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Status atualizado com sucesso!');
+            location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    } catch (error) {
+        alert('Erro ao atualizar status: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Atualizar';
+    }
+});
+</script>
+{% endblock %}
+

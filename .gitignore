@@ -12,3 +12,18 @@ Thumbs.db
 # Configs de IDEs
 .vscode/
 .idea/
+
+# Variáveis de ambiente
+.env
+
+# Banco de dados
+instance/*.db
+instance/*.db-journal
+instance/*.db-shm
+instance/*.db-wal
+
+# Logs
+*.log
+
+# Temporários
+check_db.py

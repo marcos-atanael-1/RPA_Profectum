@@ -11,13 +11,37 @@ from pathlib import Path
 import sqlite3
 import secrets
 import string
+import config
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'rpa-profectum-secret-key-2024'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///rpa_logs.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = config.SECRET_KEY
+app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = config.SQLALCHEMY_TRACK_MODIFICATIONS
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+    'connect_args': {
+        'timeout': 30,
+        'check_same_thread': False
+    }
+}
 
 db = SQLAlchemy(app)
+
+# Configurar SQLite para melhor concorrência (WAL mode)
+from sqlalchemy import text
+
+@app.before_request
+def setup_database():
+    if not hasattr(app, 'db_configured'):
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text('PRAGMA journal_mode=WAL'))
+                conn.execute(text('PRAGMA busy_timeout=30000'))
+                conn.commit()
+            app.db_configured = True
+        except:
+            pass  # Ignora se já estiver configurado
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -168,6 +192,132 @@ class BotLog(db.Model):
             'module': self.module
         }
 
+# ============================================================================
+# MODELOS DE ROMANEIOS
+# ============================================================================
+
+class Romaneio(db.Model):
+    """Modelo para gerenciar romaneios/pedidos de compra"""
+    __tablename__ = 'romaneio'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    pedido_compra = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    nota_fiscal = db.Column(db.String(100), nullable=False)
+    chave_acesso = db.Column(db.String(44), nullable=False)
+    idro = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.String(1), nullable=False, default='P', index=True)
+    tentativas_contagem = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    creator = db.relationship('User', backref=db.backref('romaneios', lazy=True))
+    observacoes = db.Column(db.Text, nullable=True)
+    apos_recebimento = db.Column(db.Boolean, default=False)
+    programado = db.Column(db.Boolean, default=True)
+    inserir_como_parcial = db.Column(db.Boolean, default=False)
+    
+    itens = db.relationship('RomaneioItem', backref='romaneio', lazy=True, cascade='all, delete-orphan')
+    logs = db.relationship('RomaneioLog', backref='romaneio', lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'pedido_compra': self.pedido_compra,
+            'nota_fiscal': self.nota_fiscal,
+            'chave_acesso': self.chave_acesso,
+            'idro': self.idro,
+            'status': self.status,
+            'status_label': config.STATUS_CHOICES.get(self.status, 'Desconhecido'),
+            'status_color': config.STATUS_COLORS.get(self.status, 'secondary'),
+            'tentativas_contagem': self.tentativas_contagem,
+            'max_tentativas': config.MAX_TENTATIVAS_CONTAGEM,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_by': self.created_by,
+            'creator_name': self.creator.full_name if self.creator else None,
+            'observacoes': self.observacoes,
+            'apos_recebimento': self.apos_recebimento,
+            'programado': self.programado,
+            'inserir_como_parcial': self.inserir_como_parcial,
+            'total_itens': len(self.itens),
+            'itens_divergentes': sum(1 for item in self.itens if item.tem_divergencia())
+        }
+    
+    def pode_excluir(self):
+        return self.status == 'P' and self.tentativas_contagem == 0
+    
+    def pode_verificar(self):
+        return self.status not in ['F'] and self.tentativas_contagem < config.MAX_TENTATIVAS_CONTAGEM
+    
+    def incrementar_tentativa(self):
+        self.tentativas_contagem += 1
+        self.updated_at = datetime.utcnow()
+
+class RomaneioItem(db.Model):
+    """Itens de um romaneio"""
+    __tablename__ = 'romaneio_item'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    romaneio_id = db.Column(db.Integer, db.ForeignKey('romaneio.id'), nullable=False, index=True)
+    idro = db.Column(db.Integer, nullable=True)
+    codigo = db.Column(db.String(50), nullable=False)
+    descricao = db.Column(db.String(500), nullable=False)
+    quantidade_nf = db.Column(db.Integer, nullable=False)
+    quantidade_contada = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def tem_divergencia(self):
+        if self.quantidade_contada is None:
+            return True
+        return self.quantidade_nf != self.quantidade_contada
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'romaneio_id': self.romaneio_id,
+            'idro': self.idro,
+            'codigo': self.codigo,
+            'descricao': self.descricao,
+            'quantidade_nf': self.quantidade_nf,
+            'quantidade_contada': self.quantidade_contada,
+            'tem_divergencia': self.tem_divergencia(),
+            'divergencia_valor': (self.quantidade_contada - self.quantidade_nf) if self.quantidade_contada else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class RomaneioLog(db.Model):
+    """Log de mudanças e ações em romaneios"""
+    __tablename__ = 'romaneio_log'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    romaneio_id = db.Column(db.Integer, db.ForeignKey('romaneio.id'), nullable=False, index=True)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    acao = db.Column(db.String(50), nullable=False)
+    status_anterior = db.Column(db.String(1), nullable=True)
+    status_novo = db.Column(db.String(1), nullable=True)
+    tentativa = db.Column(db.Integer, nullable=True)
+    detalhes = db.Column(db.Text, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    user = db.relationship('User', backref=db.backref('romaneio_logs', lazy=True))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'romaneio_id': self.romaneio_id,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'acao': self.acao,
+            'status_anterior': self.status_anterior,
+            'status_anterior_label': config.STATUS_CHOICES.get(self.status_anterior, '') if self.status_anterior else None,
+            'status_novo': self.status_novo,
+            'status_novo_label': config.STATUS_CHOICES.get(self.status_novo, '') if self.status_novo else None,
+            'tentativa': self.tentativa,
+            'detalhes': self.detalhes,
+            'user_id': self.user_id,
+            'user_name': self.user.full_name if self.user else 'Sistema Automático'
+        }
+
 # Configuração dos bots disponíveis
 AVAILABLE_BOTS = {
     'sic_full': {
@@ -206,7 +356,7 @@ AVAILABLE_BOTS = {
 def login():
     """Página de login"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('romaneios'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -228,7 +378,7 @@ def login():
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('romaneios'))
         else:
             flash('Usuário ou senha inválidos.', 'error')
     
@@ -242,40 +392,40 @@ def logout():
     flash('Logout realizado com sucesso.', 'success')
     return redirect(url_for('login'))
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/register', methods=['POST'])
 @login_required
 def register():
-    """Página de cadastro de usuários (apenas admins)"""
+    """Cadastro de usuários via modal (apenas admins)"""
     if not current_user.is_admin():
         flash('Acesso negado. Apenas administradores podem cadastrar usuários.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('romaneios'))
     
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        full_name = request.form.get('full_name')
-        role = request.form.get('role', 'user')
-        
-        # Validações
-        if not all([username, email, password, full_name]):
-            flash('Por favor, preencha todos os campos.', 'error')
-            return render_template('auth/register.html')
-        
-        if len(password) < 6:
-            flash('A senha deve ter pelo menos 6 caracteres.', 'error')
-            return render_template('auth/register.html')
-        
-        # Verificar se usuário já existe
-        if User.query.filter_by(username=username).first():
-            flash('Nome de usuário já existe.', 'error')
-            return render_template('auth/register.html')
-        
-        if User.query.filter_by(email=email).first():
-            flash('E-mail já está em uso.', 'error')
-            return render_template('auth/register.html')
-        
-        # Criar novo usuário
+    username = request.form.get('username', '').strip()
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '').strip()
+    full_name = request.form.get('full_name', '').strip()
+    role = request.form.get('role', 'user')
+    
+    # Validações
+    if not all([username, email, password, full_name]):
+        flash('Por favor, preencha todos os campos.', 'error')
+        return redirect(url_for('users_management'))
+    
+    if len(password) < 6:
+        flash('A senha deve ter pelo menos 6 caracteres.', 'error')
+        return redirect(url_for('users_management'))
+    
+    # Verificar se usuário já existe
+    if User.query.filter_by(username=username).first():
+        flash('Nome de usuário já existe.', 'error')
+        return redirect(url_for('users_management'))
+    
+    if User.query.filter_by(email=email).first():
+        flash('E-mail já está em uso.', 'error')
+        return redirect(url_for('users_management'))
+    
+    # Criar novo usuário
+    try:
         user = User(
             username=username,
             email=email,
@@ -285,18 +435,139 @@ def register():
         user.set_password(password)
         
         db.session.add(user)
+        db.session.flush()  # Flush antes do commit
         db.session.commit()
         
-        flash(f'Usuário {username} cadastrado com sucesso!', 'success')
-        return redirect(url_for('users_management'))
+        flash(f'✅ Usuário {username} cadastrado com sucesso!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_msg = str(e)
+        # Se for erro de database locked, dar uma dica
+        if 'database is locked' in error_msg:
+            flash('⚠️ Banco de dados ocupado. Por favor, tente novamente em alguns segundos.', 'warning')
+        else:
+            flash(f'Erro ao criar usuário: {error_msg}', 'error')
+        print(f"Erro detalhado ao criar usuário: {traceback.format_exc()}")
+    finally:
+        db.session.close()
     
-    return render_template('auth/register.html')
+    return redirect(url_for('users_management'))
+
+@app.route('/users')
+@login_required
+def users_management():
+    """Página de gerenciamento de usuários (apenas admins)"""
+    if not current_user.is_admin():
+        flash('Acesso negado. Apenas administradores podem gerenciar usuários.', 'error')
+        return redirect(url_for('romaneios'))
+    
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('auth/users.html', users=users)
+
+@app.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+def admin_reset_user_password(user_id):
+    """Admin reseta senha de um usuário"""
+    if not current_user.is_admin():
+        return jsonify({'error': 'Acesso negado'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        return jsonify({'error': 'Você não pode resetar sua própria senha por aqui'}), 400
+    
+    data = request.get_json()
+    new_password = data.get('new_password', '').strip()
+    
+    if not new_password or len(new_password) < 6:
+        return jsonify({'error': 'Senha deve ter no mínimo 6 caracteres'}), 400
+    
+    user.set_password(new_password)
+    db.session.commit()
+    
+    return jsonify({'message': f'Senha do usuário {user.username} resetada com sucesso!'})
+
+@app.route('/users/<int:user_id>/toggle-status', methods=['POST'])
+@login_required
+def toggle_user_status(user_id):
+    """Ativar/desativar um usuário"""
+    if not current_user.is_admin():
+        return jsonify({'error': 'Acesso negado'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        return jsonify({'error': 'Você não pode desativar sua própria conta'}), 400
+    
+    user.is_active = not user.is_active
+    action = 'ativado' if user.is_active else 'desativado'
+    db.session.commit()
+    
+    return jsonify({'message': f'Usuário {user.username} {action} com sucesso!'})
+
+@app.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    """Excluir um usuário"""
+    if not current_user.is_admin():
+        return jsonify({'error': 'Acesso negado'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        return jsonify({'error': 'Você não pode excluir sua própria conta'}), 400
+    
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({'message': f'Usuário {username} excluído com sucesso!'})
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Usuário troca sua própria senha"""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        
+        # Validações
+        if not current_password:
+            flash('Senha atual é obrigatória', 'error')
+            return render_template('auth/change_password.html')
+        
+        if not current_user.check_password(current_password):
+            flash('Senha atual incorreta', 'error')
+            return render_template('auth/change_password.html')
+        
+        if not new_password or len(new_password) < 6:
+            flash('A nova senha deve ter no mínimo 6 caracteres', 'error')
+            return render_template('auth/change_password.html')
+        
+        if new_password != confirm_password:
+            flash('As senhas não coincidem', 'error')
+            return render_template('auth/change_password.html')
+        
+        if current_password == new_password:
+            flash('A nova senha deve ser diferente da senha atual', 'error')
+            return render_template('auth/change_password.html')
+        
+        # Alterar senha
+        current_user.set_password(new_password)
+        db.session.commit()
+        
+        flash('Senha alterada com sucesso!', 'success')
+        return redirect(url_for('romaneios'))
+    
+    return render_template('auth/change_password.html')
 
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password_request():
     """Solicitar reset de senha"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('romaneios'))
     
     if request.method == 'POST':
         email = request.form.get('email')
@@ -324,7 +595,7 @@ def reset_password_request():
 def reset_password_with_token(token):
     """Reset de senha com token"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('romaneios'))
     
     user = User.query.filter_by(reset_token=token).first()
     
@@ -358,59 +629,12 @@ def reset_password_with_token(token):
     
     return render_template('auth/reset_password.html', token=token)
 
-@app.route('/users')
-@login_required
-def users_management():
-    """Página de gerenciamento de usuários (apenas admins)"""
-    if not current_user.is_admin():
-        flash('Acesso negado. Apenas administradores podem gerenciar usuários.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('auth/users.html', users=users)
-
-@app.route('/users/<int:user_id>/toggle-status', methods=['POST'])
-@login_required
-def toggle_user_status(user_id):
-    """Ativar/desativar usuário"""
-    if not current_user.is_admin():
-        return jsonify({'error': 'Acesso negado'}), 403
-    
-    user = User.query.get_or_404(user_id)
-    
-    if user.id == current_user.id:
-        return jsonify({'error': 'Você não pode desativar sua própria conta'}), 400
-    
-    user.is_active = not user.is_active
-    db.session.commit()
-    
-    status = 'ativado' if user.is_active else 'desativado'
-    return jsonify({'message': f'Usuário {user.username} {status} com sucesso'})
-
-@app.route('/users/<int:user_id>/delete', methods=['POST'])
-@login_required
-def delete_user(user_id):
-    """Excluir usuário"""
-    if not current_user.is_admin():
-        return jsonify({'error': 'Acesso negado'}), 403
-    
-    user = User.query.get_or_404(user_id)
-    
-    if user.id == current_user.id:
-        return jsonify({'error': 'Você não pode excluir sua própria conta'}), 400
-    
-    username = user.username
-    db.session.delete(user)
-    db.session.commit()
-    
-    return jsonify({'message': f'Usuário {username} excluído com sucesso'})
-
 @app.route('/settings')
 @login_required
 def settings():
     if not current_user.is_admin():
         flash('Acesso negado. Apenas administradores podem acessar as configurações.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('romaneios'))
     
     # Buscar configurações atuais
     current_settings = {
@@ -435,7 +659,7 @@ def settings():
 def update_settings():
     if not current_user.is_admin():
         flash('Acesso negado. Apenas administradores podem modificar as configurações.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('romaneios'))
     
     try:
         settings_type = request.form.get('settings_type', 'system')
@@ -474,192 +698,40 @@ def update_settings():
 
 @app.route('/')
 @login_required
-def dashboard():
-    """Dashboard principal com estatísticas"""
-    # Estatísticas gerais
-    total_executions = BotExecution.query.count()
-    running_executions = BotExecution.query.filter_by(status='running').count()
-    completed_today = BotExecution.query.filter(
-        BotExecution.start_time >= datetime.now().replace(hour=0, minute=0, second=0)
-    ).filter_by(status='completed').count()
-    
-    failed_today = BotExecution.query.filter(
-        BotExecution.start_time >= datetime.now().replace(hour=0, minute=0, second=0)
-    ).filter_by(status='failed').count()
-    
-    # Últimas execuções
-    recent_executions = BotExecution.query.order_by(BotExecution.start_time.desc()).limit(10).all()
-    
-    # Execuções por bot (últimos 7 dias)
-    week_ago = datetime.now() - timedelta(days=7)
-    executions_by_bot = db.session.query(
-        BotExecution.bot_name,
-        db.func.count(BotExecution.id).label('count')
-    ).filter(BotExecution.start_time >= week_ago).group_by(BotExecution.bot_name).all()
-    
-    stats = {
-        'total_executions': total_executions,
-        'running_executions': running_executions,
-        'completed_today': completed_today,
-        'failed_today': failed_today,
-        'recent_executions': [ex.to_dict() for ex in recent_executions],
-        'executions_by_bot': [{'bot_name': name, 'count': count} for name, count in executions_by_bot]
-    }
-    
-    return render_template('dashboard.html', stats=stats, bots=AVAILABLE_BOTS)
+def index():
+    """Redireciona para a página principal de romaneios"""
+    return redirect(url_for('romaneios'))
 
-@app.route('/bots')
-@login_required
-def bots_management():
-    """Página de gerenciamento de bots"""
-    return render_template('bots.html', bots=AVAILABLE_BOTS)
 
-@app.route('/recebimento-nf')
-@login_required
-def recebimento_nf():
-    """Página de gerenciamento de recebimento de NF"""
-    page = request.args.get('page', 1, type=int)
-    per_page = 10
-    
-    # Filtros
-    pedido_filter = request.args.get('pedido', '')
-    nf_filter = request.args.get('nf', '')
-    status_filter = request.args.get('status', '')
-    
-    # Query base
-    query = RecebimentoNF.query
-    
-    # Aplicar filtros
-    if pedido_filter:
-        query = query.filter(RecebimentoNF.pedido_compra.contains(pedido_filter))
-    if nf_filter:
-        query = query.filter(RecebimentoNF.nota_fiscal.contains(nf_filter))
-    if status_filter:
-        query = query.filter(RecebimentoNF.status == status_filter)
-    
-    # Ordenar por data de criação (mais recente primeiro)
-    query = query.order_by(RecebimentoNF.created_at.desc())
-    
-    # Paginação
-    recebimentos = query.paginate(
-        page=page, per_page=per_page, error_out=False
-    )
-    
-    return render_template('recebimento_nf.html', 
-                         recebimentos=recebimentos,
-                         pedido_filter=pedido_filter,
-                         nf_filter=nf_filter,
-                         status_filter=status_filter)
-
-@app.route('/recebimento-nf/add', methods=['POST'])
-@login_required
-def add_recebimento_nf():
-    """Adicionar novo recebimento de NF"""
-    try:
-        pedido_compra = request.form.get('pedido_compra', '').strip()
-        nota_fiscal = request.form.get('nota_fiscal', '').strip()
-        chave_acesso = request.form.get('chave_acesso', '').strip()
-        
-        # Validações
-        if not pedido_compra:
-            flash('Pedido de Compra é obrigatório', 'error')
-            return redirect(url_for('recebimento_nf'))
-            
-        if not nota_fiscal:
-            flash('Nota Fiscal é obrigatória', 'error')
-            return redirect(url_for('recebimento_nf'))
-            
-        if not chave_acesso:
-            flash('Chave de Acesso é obrigatória', 'error')
-            return redirect(url_for('recebimento_nf'))
-            
-        if len(chave_acesso) != 44:
-            flash('Chave de Acesso deve ter 44 caracteres', 'error')
-            return redirect(url_for('recebimento_nf'))
-        
-        # Verificar se já existe
-        existing = RecebimentoNF.query.filter_by(chave_acesso=chave_acesso).first()
-        if existing:
-            flash('Já existe um recebimento com esta Chave de Acesso', 'error')
-            return redirect(url_for('recebimento_nf'))
-        
-        # Criar novo recebimento
-        recebimento = RecebimentoNF(
-            pedido_compra=pedido_compra,
-            nota_fiscal=nota_fiscal,
-            chave_acesso=chave_acesso,
-            created_by=current_user.id
-        )
-        
-        db.session.add(recebimento)
-        db.session.commit()
-        
-        flash('Recebimento de NF adicionado com sucesso!', 'success')
-        
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Erro ao adicionar recebimento: {str(e)}', 'error')
-    
-    return redirect(url_for('recebimento_nf'))
-
-@app.route('/api/recebimento/<int:recebimento_id>', methods=['DELETE'])
-@login_required
-def delete_recebimento_nf(recebimento_id):
-    """Excluir um recebimento de NF"""
-    try:
-        recebimento = RecebimentoNF.query.get(recebimento_id)
-        
-        if not recebimento:
-            return jsonify({
-                'success': False,
-                'error': 'Recebimento não encontrado'
-            }), 404
-        
-        # Verificar se o usuário tem permissão (admin ou criador)
-        if not current_user.is_admin() and recebimento.created_by != current_user.id:
-            return jsonify({
-                'success': False,
-                'error': 'Você não tem permissão para excluir este recebimento'
-            }), 403
-        
-        db.session.delete(recebimento)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Recebimento excluído com sucesso'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            'success': False,
-            'error': f'Erro ao excluir recebimento: {str(e)}'
-        }), 500
 
 @app.route('/logs')
 @login_required
 def logs_view():
-    """Página de visualização de logs"""
+    """Página de visualização de logs de romaneios"""
     page = request.args.get('page', 1, type=int)
-    execution_id = request.args.get('execution_id', type=int)
-    level = request.args.get('level', '')
     
-    query = BotLog.query
+    # Filtros para logs de romaneio
+    romaneio_id = request.args.get('romaneio_id', type=int)
+    acao = request.args.get('acao', '')
     
-    if execution_id:
-        query = query.filter_by(execution_id=execution_id)
-    if level:
-        query = query.filter_by(level=level)
+    # Query de Logs de Romaneio
+    romaneio_query = RomaneioLog.query
+    if romaneio_id:
+        romaneio_query = romaneio_query.filter_by(romaneio_id=romaneio_id)
+    if acao:
+        romaneio_query = romaneio_query.filter_by(acao=acao)
     
-    logs = query.order_by(BotLog.timestamp.desc()).paginate(
+    romaneio_logs = romaneio_query.order_by(RomaneioLog.timestamp.desc()).paginate(
         page=page, per_page=50, error_out=False
     )
     
-    executions = BotExecution.query.order_by(BotExecution.start_time.desc()).limit(20).all()
+    romaneios = Romaneio.query.order_by(Romaneio.created_at.desc()).limit(50).all()
     
-    return render_template('logs.html', logs=logs, executions=executions, 
-                         current_execution_id=execution_id, current_level=level)
+    return render_template('logs.html', 
+                         romaneio_logs=romaneio_logs, 
+                         romaneios=romaneios,
+                         current_romaneio_id=romaneio_id,
+                         current_acao=acao)
 
 @app.route('/execute/<bot_id>', methods=['POST'])
 @login_required
@@ -815,6 +887,277 @@ def stop_execution(execution_id):
     
     return redirect(url_for('execution_details', execution_id=execution_id))
 
+# ============================================================================
+# ROTAS DE ROMANEIOS
+# ============================================================================
+
+@app.route('/romaneios')
+@login_required
+def romaneios():
+    """Página de gerenciamento de romaneios"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 15
+    
+    # Filtros
+    status_filter = request.args.get('status', '')
+    pedido_filter = request.args.get('pedido', '')
+    nf_filter = request.args.get('nf', '')
+    
+    # Query base
+    query = Romaneio.query
+    
+    # Aplicar filtros
+    if status_filter:
+        query = query.filter(Romaneio.status == status_filter)
+    if pedido_filter:
+        query = query.filter(Romaneio.pedido_compra.contains(pedido_filter))
+    if nf_filter:
+        query = query.filter(Romaneio.nota_fiscal.contains(nf_filter))
+    
+    # Ordenar por data de criação (mais recente primeiro)
+    query = query.order_by(Romaneio.created_at.desc())
+    
+    # Paginação
+    romaneios_paginados = query.paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    # Estatísticas simples
+    stats = {
+        'total': Romaneio.query.count(),
+        'pendentes': Romaneio.query.filter_by(status='P').count(),
+        'abertos': Romaneio.query.filter_by(status='A').count(),
+        'recebidos': Romaneio.query.filter_by(status='R').count(),
+        'finalizados': Romaneio.query.filter_by(status='F').count()
+    }
+    
+    return render_template('romaneios/lista.html',
+                         romaneios=romaneios_paginados,
+                         stats=stats,
+                         status_filter=status_filter,
+                         pedido_filter=pedido_filter,
+                         nf_filter=nf_filter,
+                         status_choices=config.STATUS_CHOICES,
+                         modo_teste=config.MODO_TESTE)
+
+@app.route('/romaneios/<int:romaneio_id>')
+@login_required
+def romaneio_detalhes(romaneio_id):
+    """Página de detalhes de um romaneio específico"""
+    romaneio = Romaneio.query.get_or_404(romaneio_id)
+    
+    # Buscar logs
+    logs = RomaneioLog.query.filter_by(romaneio_id=romaneio_id)\
+        .order_by(RomaneioLog.timestamp.desc()).all()
+    
+    return render_template('romaneios/detalhes.html',
+                         romaneio=romaneio,
+                         logs=logs,
+                         status_choices=config.STATUS_CHOICES,
+                         modo_teste=config.MODO_TESTE)
+
+@app.route('/romaneios/add', methods=['POST'])
+@login_required
+def add_romaneio():
+    """Adicionar novo romaneio"""
+    from services.api_client import RomaneioAPIClient
+    
+    try:
+        pedido_compra = request.form.get('pedido_compra', '').strip()
+        nota_fiscal = request.form.get('nota_fiscal', '').strip()
+        chave_acesso = request.form.get('chave_acesso', '').strip()
+        
+        # Validações
+        if not pedido_compra:
+            flash('Pedido de Compra é obrigatório', 'error')
+            return redirect(url_for('romaneios'))
+        if not nota_fiscal:
+            flash('Nota Fiscal é obrigatória', 'error')
+            return redirect(url_for('romaneios'))
+        if not chave_acesso:
+            flash('Chave de Acesso é obrigatória', 'error')
+            return redirect(url_for('romaneios'))
+        if len(chave_acesso) != 44:
+            flash('Chave de Acesso deve ter 44 caracteres', 'error')
+            return redirect(url_for('romaneios'))
+        
+        # Verificar se já existe
+        existing = Romaneio.query.filter_by(pedido_compra=pedido_compra).first()
+        if existing:
+            flash('Já existe um romaneio para este pedido', 'error')
+            return redirect(url_for('romaneios'))
+        
+        # Criar romaneio com valores padrão do .env
+        romaneio = Romaneio(
+            pedido_compra=pedido_compra,
+            nota_fiscal=nota_fiscal,
+            chave_acesso=chave_acesso,
+            created_by=current_user.id,
+            status='P',
+            apos_recebimento=config.API_APOS_RECEBIMENTO,
+            programado=config.API_PROGRAMADO,
+            inserir_como_parcial=config.API_INSERIR_PARCIAL_SE_EXISTIR
+        )
+        
+        # Chamar API se não for modo teste
+        if not config.MODO_TESTE:
+            api_client = RomaneioAPIClient()
+            try:
+                resultado_api = api_client.inserir_romaneio(
+                    pedido_compra, nota_fiscal, chave_acesso
+                )
+                if isinstance(resultado_api, dict) and 'idro' in resultado_api:
+                    romaneio.idro = resultado_api['idro']
+            except Exception as e:
+                flash(f'Romaneio criado no banco, mas erro na API: {str(e)}', 'warning')
+        else:
+            romaneio.idro = 999999
+        
+        db.session.add(romaneio)
+        db.session.flush()
+        
+        # Criar log
+        log = RomaneioLog(
+            romaneio_id=romaneio.id,
+            acao='criado',
+            status_novo='P',
+            detalhes=f'Romaneio criado {"[MODO TESTE]" if config.MODO_TESTE else ""}',
+            user_id=current_user.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash('Romaneio criado com sucesso!', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao criar romaneio: {str(e)}', 'error')
+    
+    return redirect(url_for('romaneios'))
+
+@app.route('/api/romaneios/<int:romaneio_id>', methods=['GET'])
+@login_required
+def api_get_romaneio(romaneio_id):
+    """API: Buscar dados de um romaneio"""
+    romaneio = Romaneio.query.get(romaneio_id)
+    
+    if not romaneio:
+        return jsonify({'success': False, 'error': 'Romaneio não encontrado'}), 404
+    
+    # Incluir itens
+    dados = romaneio.to_dict()
+    dados['itens'] = [item.to_dict() for item in romaneio.itens]
+    
+    return jsonify({'success': True, 'romaneio': dados})
+
+@app.route('/api/romaneios/<int:romaneio_id>', methods=['DELETE'])
+@login_required
+def api_excluir_romaneio(romaneio_id):
+    """API: Excluir um romaneio"""
+    try:
+        romaneio = Romaneio.query.get(romaneio_id)
+        
+        if not romaneio:
+            return jsonify({'success': False, 'error': 'Romaneio não encontrado'}), 404
+        
+        if not romaneio.pode_excluir():
+            return jsonify({'success': False, 'error': 'Apenas romaneios pendentes sem tentativas podem ser excluídos'}), 400
+        
+        if not current_user.is_admin() and romaneio.created_by != current_user.id:
+            return jsonify({'success': False, 'error': 'Sem permissão'}), 403
+        
+        db.session.delete(romaneio)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Romaneio excluído com sucesso'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/romaneios/<int:romaneio_id>/verificar', methods=['POST'])
+@login_required
+def api_verificar_romaneio(romaneio_id):
+    """API: Forçar verificação de um romaneio específico"""
+    from services.verificador_service import VerificadorService
+    
+    romaneio = Romaneio.query.get(romaneio_id)
+    
+    if not romaneio:
+        return jsonify({'success': False, 'error': 'Romaneio não encontrado'}), 404
+    
+    if not romaneio.pode_verificar():
+        return jsonify({
+            'success': False,
+            'error': 'Romaneio não pode ser verificado (finalizado ou máximo de tentativas atingido)'
+        }), 400
+    
+    try:
+        verificador = VerificadorService()
+        resultado = verificador.verificar_romaneio(romaneio)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Verificação realizada com sucesso',
+            'resultado': resultado
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/romaneios/<int:romaneio_id>/status', methods=['PUT'])
+@login_required
+def api_atualizar_status_romaneio(romaneio_id):
+    """API: Atualizar status manualmente (apenas admin)"""
+    if not current_user.is_admin():
+        return jsonify({'success': False, 'error': 'Acesso negado'}), 403
+    
+    try:
+        dados = request.get_json()
+        novo_status = dados.get('status')
+        observacoes = dados.get('observacoes')
+        
+        if not novo_status or novo_status not in config.STATUS_CHOICES:
+            return jsonify({'success': False, 'error': 'Status inválido'}), 400
+        
+        romaneio = Romaneio.query.get(romaneio_id)
+        if not romaneio:
+            return jsonify({'success': False, 'error': 'Romaneio não encontrado'}), 404
+        
+        status_anterior = romaneio.status
+        romaneio.status = novo_status
+        romaneio.updated_at = datetime.utcnow()
+        
+        # Criar log
+        log = RomaneioLog(
+            romaneio_id=romaneio.id,
+            acao='atualizado_manual',
+            status_anterior=status_anterior,
+            status_novo=novo_status,
+            detalhes=observacoes or 'Status atualizado manualmente',
+            user_id=current_user.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Status atualizado para {config.STATUS_CHOICES[novo_status]}'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/romaneios/<int:romaneio_id>/logs', methods=['GET'])
+@login_required
+def api_logs_romaneio(romaneio_id):
+    """API: Buscar logs de um romaneio"""
+    logs = RomaneioLog.query.filter_by(romaneio_id=romaneio_id)\
+        .order_by(RomaneioLog.timestamp.desc()).all()
+    
+    return jsonify({
+        'success': True,
+        'logs': [log.to_dict() for log in logs]
+    })
+
 def create_admin_user():
     """Cria o usuário administrador padrão se não existir"""
     try:
@@ -862,4 +1205,15 @@ if __name__ == '__main__':
         db.create_all()
         create_admin_user()
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("\n" + "="*60)
+    print("🚀 RPA Profectum - Sistema de Romaneios")
+    print("="*60)
+    print(f"Modo: {'TESTE (não chama APIs)' if config.MODO_TESTE else 'PRODUÇÃO'}")
+    print(f"Painel Web: http://localhost:5000")
+    print(f"\n💡 Verificador automático:")
+    print(f"   Use o Agendador de Tarefas do Windows")
+    print(f"   Comando: python verificador_romaneios.py --once")
+    print(f"   Intervalo sugerido: {config.INTERVALO_VERIFICACAO_MINUTOS} minutos")
+    print("="*60 + "\n")
+    
+    app.run(debug=config.FLASK_DEBUG, host='0.0.0.0', port=5000)
