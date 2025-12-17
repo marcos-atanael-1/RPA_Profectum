@@ -138,20 +138,20 @@ class VerificadorService:
             itens_api = dados_romaneio.get('ITEM', [])
             self._log(f"  Encontrados {len(itens_api)} itens na API")
             
-            # ✅ VERIFICAR SE TODOS OS ITENS JÁ FORAM CONTADOS
-            # Se algum item ainda tiver QUANTIDADE_CONTADA = null, não processar
+            # Verificar se todos os itens ja foram contados
+            # Se algum item ainda tiver QUANTIDADE_CONTADA = null, nao processar
             itens_nao_contados = [
                 item for item in itens_api 
                 if item.get('QUANTIDADE_CONTADA') is None
             ]
             
             if itens_nao_contados:
-                self._log(f"  ⏭️  IGNORADO: {len(itens_nao_contados)} item(ns) ainda sem contagem (QUANTIDADE_CONTADA = null)")
+                self._log(f"  IGNORADO: {len(itens_nao_contados)} item(ns) ainda sem contagem (QUANTIDADE_CONTADA = null)")
                 for item in itens_nao_contados:
                     self._log(f"     - {item.get('CODIGO')}: {item.get('DESCRICAO')}")
                 return {
                     'status': 'aguardando_contagem',
-                    'mensagem': f'{len(itens_nao_contados)} item(ns) ainda não foram contados'
+                    'mensagem': f'{len(itens_nao_contados)} item(ns) ainda nao foram contados'
                 }
             
             # Atualizar ou criar itens no banco
@@ -165,8 +165,8 @@ class VerificadorService:
             # Incrementar tentativa
             romaneio.incrementar_tentativa()
             
-            # Decidir ação baseado nas quantidades
-            if todas_contadas e todas_batem:
+            # Decidir acao baseado nas quantidades
+            if todas_contadas and todas_batem:
                 # Todas as quantidades bateram -> Atualizar para ABERTO
                 self._log(f"  SUCESSO: Todas as quantidades bateram!")
                 return self._atualizar_para_aberto(romaneio)
