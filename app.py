@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -939,6 +939,94 @@ def romaneios():
                          nf_filter=nf_filter,
                          status_choices=config.STATUS_CHOICES,
                          modo_teste=config.MODO_TESTE)
+
+@app.route('/romaneios/exportar-excel')
+@login_required
+def exportar_romaneios_excel():
+    """Exportar romaneios para Excel"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+    
+    # Filtros (mesmos da listagem)
+    status_filter = request.args.get('status', '')
+    pedido_filter = request.args.get('pedido', '')
+    nf_filter = request.args.get('nf', '')
+    
+    # Query base
+    query = Romaneio.query
+    
+    # Aplicar filtros
+    if status_filter:
+        query = query.filter(Romaneio.status == status_filter)
+    if pedido_filter:
+        query = query.filter(Romaneio.pedido_compra.contains(pedido_filter))
+    if nf_filter:
+        query = query.filter(Romaneio.nota_fiscal.contains(nf_filter))
+    
+    # Ordenar por data de criação (mais recente primeiro)
+    romaneios = query.order_by(Romaneio.created_at.desc()).all()
+    
+    # Criar workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Romaneios"
+    
+    # Estilo do cabeçalho
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Cabeçalhos
+    headers = [
+        "Pedido de Compra", "Nota Fiscal", "Chave de Acesso", "Status",
+        "Tentativas", "Total Itens", "Itens Divergentes", "IDRO",
+        "Criado em", "Criado por", "Atualizado em"
+    ]
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+    
+    # Dados
+    for row_num, romaneio in enumerate(romaneios, 2):
+        dados = romaneio.to_dict()
+        
+        ws.cell(row=row_num, column=1).value = romaneio.pedido_compra
+        ws.cell(row=row_num, column=2).value = romaneio.nota_fiscal
+        ws.cell(row=row_num, column=3).value = romaneio.chave_acesso
+        ws.cell(row=row_num, column=4).value = dados['status_label']
+        ws.cell(row=row_num, column=5).value = f"{romaneio.tentativas_contagem}/{dados['max_tentativas']}"
+        ws.cell(row=row_num, column=6).value = dados['total_itens']
+        ws.cell(row=row_num, column=7).value = dados['itens_divergentes']
+        ws.cell(row=row_num, column=8).value = romaneio.idro or '-'
+        ws.cell(row=row_num, column=9).value = romaneio.created_at.strftime('%d/%m/%Y %H:%M') if romaneio.created_at else '-'
+        ws.cell(row=row_num, column=10).value = romaneio.creator.full_name if romaneio.creator else '-'
+        ws.cell(row=row_num, column=11).value = romaneio.updated_at.strftime('%d/%m/%Y %H:%M') if romaneio.updated_at else '-'
+    
+    # Ajustar largura das colunas
+    column_widths = [18, 15, 48, 12, 12, 12, 18, 12, 18, 20, 18]
+    for col_num, width in enumerate(column_widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col_num).column_letter].width = width
+    
+    # Salvar em memória
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # Nome do arquivo
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'romaneios_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
 
 @app.route('/romaneios/<int:romaneio_id>')
 @login_required

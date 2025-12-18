@@ -4,6 +4,12 @@
 
 // Validação da chave de acesso em tempo real
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar tooltips do Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
     const chaveInput = document.getElementById('chave_acesso');
     const chaveCounter = document.getElementById('chave-counter');
     
