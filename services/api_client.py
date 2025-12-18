@@ -174,6 +174,12 @@ class RomaneioAPIClient:
             self._log(f"Dados: {dados}")
             
             response = requests.post(url, json=dados, headers=self.headers, timeout=30)
+            
+            # Log detalhado do status HTTP e response
+            print(f"\n📡 HTTP Status Code: {response.status_code}")
+            print(f"📝 Response Headers: {dict(response.headers)}")
+            print(f"📄 Response Text: {response.text[:500] if response.text else '(vazio)'}")
+            
             response.raise_for_status()
             
             result = response.json() if response.text else {"success": True}
@@ -183,6 +189,9 @@ class RomaneioAPIClient:
             
         except requests.exceptions.RequestException as e:
             self._log(f"ERRO na requisicao POST: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"\n🚨 HTTP Error Status: {e.response.status_code}")
+                print(f"📄 Error Response: {e.response.text}")
             raise Exception(f"Erro ao inserir romaneio: {str(e)}")
     
     def atualizar_status_romaneio(self, idro, status):

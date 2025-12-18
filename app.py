@@ -1091,15 +1091,45 @@ def add_romaneio():
         if not config.MODO_TESTE:
             api_client = RomaneioAPIClient()
             try:
+                print("\n" + "="*80)
+                print("🚀 CHAMANDO API DE INSERÇÃO DE ROMANEIO")
+                print("="*80)
+                print(f"📋 Pedido: {pedido_compra}")
+                print(f"📄 Nota Fiscal: {nota_fiscal}")
+                print(f"🔑 Chave: {chave_acesso}")
+                print("-"*80)
+                
                 resultado_api = api_client.inserir_romaneio(
                     pedido_compra, nota_fiscal, chave_acesso
                 )
+                
+                print("\n✅ RESPOSTA DA API:")
+                print("-"*80)
+                print(f"📊 Status: SUCCESS")
+                print(f"📦 Response completo:")
+                import json
+                print(json.dumps(resultado_api, indent=2, ensure_ascii=False))
+                print("="*80 + "\n")
+                
                 if isinstance(resultado_api, dict) and 'idro' in resultado_api:
                     romaneio.idro = resultado_api['idro']
+                    print(f"✓ IDRO obtido: {resultado_api['idro']}")
             except Exception as e:
+                print("\n❌ ERRO NA API:")
+                print("-"*80)
+                print(f"🚨 Erro: {str(e)}")
+                print("="*80 + "\n")
                 flash(f'Romaneio criado no banco, mas erro na API: {str(e)}', 'warning')
         else:
             romaneio.idro = 999999
+            print("\n" + "="*80)
+            print("🧪 MODO TESTE - API NÃO CHAMADA")
+            print("="*80)
+            print(f"📋 Pedido: {pedido_compra}")
+            print(f"📄 Nota Fiscal: {nota_fiscal}")
+            print(f"🔑 Chave: {chave_acesso}")
+            print(f"✓ IDRO fictício: 999999")
+            print("="*80 + "\n")
         
         db.session.add(romaneio)
         db.session.flush()

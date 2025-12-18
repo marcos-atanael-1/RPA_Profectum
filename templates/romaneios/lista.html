@@ -158,33 +158,30 @@
                             <td style="padding: 0.5rem;"><small>{{ romaneio.created_at.strftime('%d/%m/%y %H:%M') if romaneio.created_at else '-' }}</small></td>
                             <td style="padding: 0.5rem;"><small>{{ romaneio.creator.full_name if romaneio.creator else '-' }}</small></td>
                             <td style="padding: 0.5rem;">
-                                <div class="d-flex gap-2">
+                                <div class="d-flex gap-1">
                                     <a href="{{ url_for('romaneio_detalhes', romaneio_id=romaneio.id) }}" 
-                                       class="btn btn-light border" 
-                                       style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; border-color: #17a2b8 !important; color: #17a2b8;" 
+                                       class="btn btn-sm btn-outline-info" 
+                                       style="padding: 0.25rem 0.5rem;" 
                                        data-bs-toggle="tooltip" 
-                                       data-bs-placement="top"
-                                       title="Ver detalhes do romaneio">
-                                        <i class="fas fa-eye" style="font-size: 16px;"></i>
+                                       title="Ver detalhes">
+                                        <i class="fas fa-eye"></i>
                                     </a>
                                     {% if romaneio.pode_verificar() %}
-                                    <button class="btn btn-light border btn-verificar" 
-                                            style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; border-color: #0d6efd !important; color: #0d6efd;" 
+                                    <button class="btn btn-sm btn-outline-primary btn-verificar" 
+                                            style="padding: 0.25rem 0.5rem;" 
                                             data-id="{{ romaneio.id }}" 
                                             data-bs-toggle="tooltip" 
-                                            data-bs-placement="top"
-                                            title="Verificar contagem na API">
-                                        <i class="fas fa-sync" style="font-size: 16px;"></i>
+                                            title="Verificar agora">
+                                        <i class="fas fa-sync"></i>
                                     </button>
                                     {% endif %}
                                     {% if romaneio.pode_excluir() %}
-                                    <button class="btn btn-light border btn-excluir" 
-                                            style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; border-color: #dc3545 !important; color: #dc3545;" 
+                                    <button class="btn btn-sm btn-outline-danger btn-excluir" 
+                                            style="padding: 0.25rem 0.5rem;" 
                                             data-id="{{ romaneio.id }}" 
                                             data-bs-toggle="tooltip" 
-                                            data-bs-placement="top"
-                                            title="Excluir romaneio">
-                                        <i class="fas fa-trash" style="font-size: 16px;"></i>
+                                            title="Excluir">
+                                        <i class="fas fa-trash"></i>
                                     </button>
                                     {% endif %}
                                 </div>
@@ -236,33 +233,6 @@
     </div>
 </div>
 
-<style>
-/* Efeitos hover para os botões de ação */
-.btn-light.border:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    transition: all 0.2s ease;
-}
-
-.btn-light.border[style*="border-color: #17a2b8"]:hover {
-    background-color: #17a2b8 !important;
-    color: white !important;
-}
-
-.btn-light.border[style*="border-color: #0d6efd"]:hover {
-    background-color: #0d6efd !important;
-    color: white !important;
-}
-
-.btn-light.border[style*="border-color: #dc3545"]:hover {
-    background-color: #dc3545 !important;
-    color: white !important;
-}
-
-.btn-light.border:active {
-    transform: translateY(0);
-}
-</style>
 
 <!-- Modal Novo Romaneio -->
 <div class="modal fade" id="modalNovoRomaneio" tabindex="-1">
