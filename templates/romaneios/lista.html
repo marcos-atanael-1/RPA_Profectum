@@ -155,18 +155,18 @@
                             <td style="padding: 0.5rem;"><small>{{ romaneio.created_at.strftime('%d/%m/%y %H:%M') if romaneio.created_at else '-' }}</small></td>
                             <td style="padding: 0.5rem;"><small>{{ romaneio.creator.full_name if romaneio.creator else '-' }}</small></td>
                             <td style="padding: 0.5rem;">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url_for('romaneio_detalhes', romaneio_id=romaneio.id) }}" class="btn btn-outline-info btn-sm" title="Ver detalhes">
-                                        <i class="fas fa-eye"></i>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('romaneio_detalhes', romaneio_id=romaneio.id) }}" class="btn btn-outline-info" style="padding: 0.5rem 0.75rem;" title="Ver detalhes">
+                                        <i class="fas fa-eye" style="font-size: 1rem;"></i>
                                     </a>
                                     {% if romaneio.pode_verificar() %}
-                                    <button class="btn btn-outline-primary btn-sm btn-verificar" data-id="{{ romaneio.id }}" title="Verificar agora">
-                                        <i class="fas fa-sync"></i>
+                                    <button class="btn btn-outline-primary btn-verificar" style="padding: 0.5rem 0.75rem;" data-id="{{ romaneio.id }}" title="Verificar agora">
+                                        <i class="fas fa-sync" style="font-size: 1rem;"></i>
                                     </button>
                                     {% endif %}
                                     {% if romaneio.pode_excluir() %}
-                                    <button class="btn btn-outline-danger btn-sm btn-excluir" data-id="{{ romaneio.id }}" title="Excluir">
-                                        <i class="fas fa-trash"></i>
+                                    <button class="btn btn-outline-danger btn-excluir" style="padding: 0.5rem 0.75rem;" data-id="{{ romaneio.id }}" title="Excluir">
+                                        <i class="fas fa-trash" style="font-size: 1rem;"></i>
                                     </button>
                                     {% endif %}
                                 </div>
