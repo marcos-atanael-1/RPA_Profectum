@@ -1111,15 +1111,28 @@ def add_romaneio():
                 print(json.dumps(resultado_api, indent=2, ensure_ascii=False))
                 print("="*80 + "\n")
                 
-                if isinstance(resultado_api, dict) and 'idro' in resultado_api:
-                    romaneio.idro = resultado_api['idro']
-                    print(f"✓ IDRO obtido: {resultado_api['idro']}")
+                # Verificar se a API retornou mensagem de romaneio já existente
+                if isinstance(resultado_api, dict):
+                    mensagem = resultado_api.get('mensagem', '')
+                    
+                    # Verificar se é um erro de romaneio já existente
+                    if 'já existente' in mensagem.lower() or 'ja existente' in mensagem.lower():
+                        print(f"⚠️ Romaneio já existe na API externa!")
+                        flash(f'❌ {mensagem}', 'error')
+                        return redirect(url_for('romaneios'))
+                    
+                    # Se tiver IDRO, atualizar
+                    if 'idro' in resultado_api:
+                        romaneio.idro = resultado_api['idro']
+                        print(f"✓ IDRO obtido: {resultado_api['idro']}")
+                        
             except Exception as e:
                 print("\n❌ ERRO NA API:")
                 print("-"*80)
                 print(f"🚨 Erro: {str(e)}")
                 print("="*80 + "\n")
-                flash(f'Romaneio criado no banco, mas erro na API: {str(e)}', 'warning')
+                flash(f'Erro ao chamar API: {str(e)}', 'error')
+                return redirect(url_for('romaneios'))
         else:
             romaneio.idro = 999999
             print("\n" + "="*80)
