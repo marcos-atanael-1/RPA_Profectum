@@ -268,8 +268,10 @@ class RomaneioItem(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def tem_divergencia(self):
+        # Se ainda não foi contado, não há divergência
         if self.quantidade_contada is None:
-            return True
+            return False
+        # Só há divergência se as quantidades forem diferentes
         return self.quantidade_nf != self.quantidade_contada
     
     def to_dict(self):
