@@ -1125,6 +1125,57 @@ def add_romaneio():
                     if 'idro' in resultado_api:
                         romaneio.idro = resultado_api['idro']
                         print(f"✓ IDRO obtido: {resultado_api['idro']}")
+                
+                # Buscar itens do romaneio via GET
+                print("\n" + "="*80)
+                print("📥 BUSCANDO ITENS DO ROMANEIO (GET)")
+                print("="*80)
+                
+                try:
+                    dados_romaneio = api_client.get_romaneio(pedido_compra)
+                    
+                    if dados_romaneio and len(dados_romaneio) > 0:
+                        romaneio_data = dados_romaneio[0]
+                        
+                        # Atualizar IDRO se ainda não tiver
+                        if not romaneio.idro and 'IDRO' in romaneio_data:
+                            romaneio.idro = romaneio_data['IDRO']
+                            print(f"✓ IDRO obtido do GET: {romaneio_data['IDRO']}")
+                        
+                        # Processar itens
+                        itens_api = romaneio_data.get('ITEM', [])
+                        print(f"📦 {len(itens_api)} itens encontrados")
+                        
+                        # Salvar romaneio primeiro para ter o ID
+                        db.session.add(romaneio)
+                        db.session.flush()
+                        
+                        # Salvar itens
+                        for item_data in itens_api:
+                            item = RomaneioItem(
+                                romaneio_id=romaneio.id,
+                                codigo=item_data.get('CODIGO'),
+                                descricao=item_data.get('DESCRICAO'),
+                                quantidade_nf=item_data.get('QUANTIDADE_NF'),
+                                quantidade_contada=item_data.get('QUANTIDADE_CONTADA')
+                            )
+                            db.session.add(item)
+                            print(f"  ✓ Item: {item_data.get('CODIGO')} - {item_data.get('DESCRICAO')}")
+                        
+                        print("="*80 + "\n")
+                    else:
+                        print("⚠️ Nenhum item retornado pela API")
+                        print("="*80 + "\n")
+                        # Salvar romaneio mesmo sem itens
+                        db.session.add(romaneio)
+                        db.session.flush()
+                        
+                except Exception as e_get:
+                    print(f"\n⚠️ ERRO ao buscar itens: {str(e_get)}")
+                    print("="*80 + "\n")
+                    # Salvar romaneio mesmo com erro ao buscar itens
+                    db.session.add(romaneio)
+                    db.session.flush()
                         
             except Exception as e:
                 print("\n❌ ERRO NA API:")
@@ -1143,9 +1194,28 @@ def add_romaneio():
             print(f"🔑 Chave: {chave_acesso}")
             print(f"✓ IDRO fictício: 999999")
             print("="*80 + "\n")
-        
-        db.session.add(romaneio)
-        db.session.flush()
+            
+            # No modo teste, criar itens fictícios
+            db.session.add(romaneio)
+            db.session.flush()
+            
+            # Itens de teste
+            item1 = RomaneioItem(
+                romaneio_id=romaneio.id,
+                codigo="01.000001",
+                descricao="PRODUTO TESTE A",
+                quantidade_nf=100,
+                quantidade_contada=100
+            )
+            item2 = RomaneioItem(
+                romaneio_id=romaneio.id,
+                codigo="01.000002",
+                descricao="PRODUTO TESTE B",
+                quantidade_nf=50,
+                quantidade_contada=50
+            )
+            db.session.add(item1)
+            db.session.add(item2)
         
         # Criar log
         log = RomaneioLog(
